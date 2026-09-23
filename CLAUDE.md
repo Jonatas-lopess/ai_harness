@@ -2,9 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Status
-
-Planning stage. Repo has one doc, `Guia de Estudo Harness de IA para ERP e Legal.md` (Portuguese), no code, no commits. That doc is the source of truth for this project — read it, not just this summary, before doing real work. Update this file with real build/lint/test commands once code exists; don't invent them now.
+`Guia de Estudo Harness de IA para ERP e Legal.md` (Portuguese) is source of truth — read it, not just this summary, before doing real work. Update this file with real build/lint/test commands once code exists; don't invent them now.
 
 ## What this project is
 
