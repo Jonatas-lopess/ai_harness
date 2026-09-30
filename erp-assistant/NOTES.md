@@ -28,6 +28,12 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - `pythonpath = ["."]` em `[tool.pytest]` para testes acharem `settings.py`; virar pacote fica para a fase 5.
 - basedpyright estrito: falso positivo `reportCallIssue` em `Settings()` (campo vem do env); um único `# pyright: ignore` dentro de `get_settings()`.
 
+## Tipagem
+- Type hints não são checados em runtime, nem em TS (tipos apagados). Checker separado (basedpyright ~ `tsc`). Pydantic lê as hints em runtime e valida por conta própria.
+- `X | None` é o estilo preferido (3.10+); `Optional[X]` é legado e não torna parâmetro opcional.
+- `list` é invariante (função poderia dar `append` de tipo pai). Parâmetro só de leitura: `Sequence` (covariante, ~ `ReadonlyArray`). Que escreve: `list`.
+- `ClassVar` marca atributo da classe (~ `static`), não campo da instância. No pydantic, `model_config` não é campo nem lido do env.
+
 ## Pendente na fase 0
-- Docker Compose com Postgres seed
-- Tipagem (type hints) e checagem
+- Docker Compose com Postgres seed (adiado). Fase só fecha com `docker compose up` + `pytest` do zero.
+- Decidir `.env.example`: `DATABASE_URL=` vazio ou exemplo fictício.
