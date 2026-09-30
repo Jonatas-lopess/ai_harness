@@ -16,6 +16,7 @@ dev = [
 
 [tool.pytest]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.basedpyright]
 venvPath = "."
