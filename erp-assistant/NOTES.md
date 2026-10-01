@@ -34,6 +34,32 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - `list` é invariante (função poderia dar `append` de tipo pai). Parâmetro só de leitura: `Sequence` (covariante, ~ `ReadonlyArray`). Que escreve: `list`.
 - `ClassVar` marca atributo da classe (~ `static`), não campo da instância. No pydantic, `model_config` não é campo nem lido do env.
 
-## Pendente na fase 0
-- Docker Compose com Postgres seed (adiado). Fase só fecha com `docker compose up` + `pytest` do zero.
-- Decidir `.env.example`: `DATABASE_URL=` vazio ou exemplo fictício.
+## Docker Compose + Postgres
+- Imagem `postgres` só entende `POSTGRES_USER/DB/PASSWORD` (outros nomes são ignorados; sem senha o container não sobe). Ela já cria usuário e banco: `CREATE DATABASE/USER` no seed falha.
+- Scripts de `/docker-entrypoint-initdb.d` (mount `:ro`) rodam em ordem alfabética (prefixo `01_`, `02_`) e **só com o volume de dados vazio**. Quem decide é o volume, não o cache da imagem.
+- Mudou o `.sql`: `docker compose down -v` (apaga volume) e `up` de novo. `down` sem `-v` mantém o seed antigo. `-v` destrói dados; ok aqui, só dado sintético.
+- Volume nomeado precisa ser declarado em `volumes:` na raiz do `compose.yaml` (bind mount não). Erro: `refers to undefined volume`.
+- `$$VAR` no healthcheck: `$$` escapa a interpolação do Compose, o shell do container expande.
+- `docker compose up -d` volta quando o container iniciou, não quando o Postgres aceita conexão. `healthcheck` (`pg_isready`) + `up -d --wait` evita falha espúria (flaky) no teste.
+- `${VAR}` no `compose.yaml` vem do `.env` do projeto. `env_file` ficou redundante e mandava `DATABASE_URL` com senha pro container; removido.
+- Mapeamento `host:container` (`5432:5432`): conflito se a porta do host estiver em uso; mudar só o lado esquerdo e ajustar `DATABASE_URL`.
+- Sem Dockerfile nem `requirements.txt` agora: `pyproject.toml` + `uv.lock` cumprem o papel, e o Postgres usa imagem pronta. Dockerfile do app fica para a fase 7.
+- SQL: vírgula sobrando antes de `)` é erro (diferente de JS). `sales.product_id` com FK para o banco garantir integridade.
+
+## psycopg e teste de integração
+- `cur.execute()` devolve o próprio cursor, não linhas. Linhas vêm de `fetchone()` (tupla, mesmo com uma coluna: `row[0]`).
+- `with psycopg.connect(...) as conn` fecha a conexão ao sair (~ `try/finally`, `using` do TS).
+- `@mark.integration` (registrado em `[tool.pytest]` `markers`) separa testes que precisam de Docker. Unit rápido: `pytest -m "not integration"`.
+- Sem DB, o teste falha com `psycopg.OperationalError: connection failed ... Connection refused`.
+- Assert acoplado ao seed (`== 3`) quebra quando o seed crescer; usado `>= 1`.
+- `test_smoke.py` removido: `test_env.py` e o teste de integração cumprem o papel.
+
+## Settings x Compose
+- `POSTGRES_PASSWORD` no `.env` quebrou `Settings` (`extra_forbidden`): `BaseSettings` rejeita chave de `.env` que não é campo.
+- Solução: `extra="ignore"`. Custo: typo em chave do `.env` passa em silêncio. Alternativa futura: `.env` separado para o Compose.
+
+## Setup em máquina nova (atualizado)
+`cp .env.example .env`, `docker compose up -d --wait`, `uv sync`, `uv run pytest`.
+
+## Opcional na fase 0
+- `uv add --dev basedpyright` para checar tipos no terminal/CI.

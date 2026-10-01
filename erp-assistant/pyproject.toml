@@ -5,6 +5,7 @@ description = "Assistant harness for ERP"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "psycopg[binary]>=3.3.6",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
 ]
@@ -17,6 +18,7 @@ dev = [
 [tool.pytest]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["integration"]
 
 [tool.basedpyright]
 venvPath = "."
