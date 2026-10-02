@@ -83,9 +83,16 @@ Branch → pin version → read release notes for harness impact → real-call e
 
 ## How to work with the study author
 
-They implement each phase themselves; assistant explains, questions, reviews — never writes the implementation for them. Per phase: concept explanation with minimal example → author predicts behavior → author implements → assistant reviews design/risks/alternatives without rewriting → author writes an eval/unit test → notes in a per-phase `NOTES.md`. One phase, one new concept per session; don't advance past a phase's "ready" criterion.
+Since phase 1 the author asked for a faster approach (they lack Python base): assistant writes the implementation of the current step, strictly within that step's scope (no retry/cost/tracing ahead of time), with tests, and focuses on explanation. Per step: concept explanation with minimal example → author predicts behavior → assistant implements + runs tests → guided walkthrough of code and design decisions (explain Python as deltas from JS/TS) → author answers 3 review questions → at least one real provider call (fake-client tests don't prove provider behavior) → author writes notes in the per-phase `NOTES.md`. One phase, one new concept per session; don't advance past a phase's "ready" criterion. Don't edit files the author is mid-edit on without saying so; flag problems in their edits instead.
 
 Ready-to-copy prompt templates for each cycle step: guide's "Como estudar com a IA" section.
+
+## Commands (from `erp-assistant/`)
+
+- Setup: `cp .env.example .env` (fill `GROQ_API_KEY`), `docker compose up -d --wait`, `uv sync`.
+- Unit tests (no network, no Docker): `uv run pytest -m "not integration"`.
+- All tests: `uv run pytest`. `integration` marker = needs Postgres (Docker) or real Groq calls (uses free-tier quota).
+- LLM provider: Groq (`groq` SDK), kept behind the `LLMClient` Protocol in `extract.py`; `groq_client.py` is the only file that knows the SDK. No lint/typecheck command yet (basedpyright not installed as a dev dep).
 
 ## Agent skills
 

@@ -20,16 +20,19 @@ Pergunta respondida: "checkouts" no ERP significa fechamento de caixa (PDV) ou c
 
 ## Como estudar com a IA
 
-Use a IA como tutor e revisora, não como quem escreve o código por você: você implementa cada fase e ela explica, questiona e revisa.
+A IA escreve a implementação da etapa em que você está; você aprende lendo o código com ela. O foco é entender: cada decisão de design é explicada, e você responde perguntas de revisão para provar que entendeu. Escrever tudo do zero era lento demais sem base prévia em Python.
 
-Ciclo por fase, repetido do começo ao fim:
+Limite do escopo: a IA implementa **somente** o que a etapa atual pede, sem adiantar conceitos de etapas seguintes (retry, custo, tracing, etc.). Uma etapa por vez mantém o código pequeno o bastante para você ler inteiro.
 
-1. **Conceito**: peça uma explicação curta com um exemplo mínimo, antes de escrever código.
-2. **Previsão**: diga o que você espera que aconteça e por quê.
-3. **Implementação**: escreva você mesmo a primeira versão.
-4. **Revisão**: peça à IA para apontar falhas de design, riscos e alternativas.
-5. **Teste**: escreva um caso de eval ou de unidade que prove o comportamento.
-6. **Registro**: anote no repositório o que aprendeu e o que quebrou (um `NOTES.md` por fase).
+Ciclo por etapa, repetido do começo ao fim:
+
+1. **Conceito**: explicação curta com um exemplo mínimo, antes de qualquer código.
+2. **Previsão**: diga o que você espera que aconteça e por quê; a IA corrige.
+3. **Implementação**: a IA escreve a etapa, com testes, e roda tudo.
+4. **Leitura guiada**: a IA explica o código e as decisões (com analogias JS/TS quando ajudam). Você lê, questiona e pede mudanças.
+5. **Perguntas de revisão**: você responde 3 perguntas sobre o código; a IA corrige as respostas.
+6. **Chamada real**: rode o provedor de verdade pelo menos uma vez. Teste com simulação não prova o comportamento real do provedor (ex.: o Groq responde HTTP 400, e não `finish_reason="length"`, quando o JSON é cortado).
+7. **Registro**: anote no repositório o que aprendeu e o que quebrou (um `NOTES.md` por fase). Ao escrever com suas palavras, você fixa o conceito.
 
 Prompts prontos para copiar e adaptar:
 
@@ -37,8 +40,11 @@ Prompts prontos para copiar e adaptar:
 Explicação:
 "Explique [conceito] em 10 linhas com um exemplo mínimo em Python. Depois me faça 3 perguntas para eu verificar se entendi."
 
+Implementação guiada:
+"Implemente somente a etapa [X] da fase [N], com testes, sem adiantar etapas futuras. Depois explique cada decisão de design e me faça 3 perguntas de revisão."
+
 Revisão de design:
-"Aqui está meu código da fase [N]. Aponte acoplamentos entre harness e pack, riscos de segurança e o que quebraria se eu trocasse de modelo. Não reescreva; só aponte."
+"Aqui está o código da fase [N]. Aponte acoplamentos entre harness e pack, riscos de segurança e o que quebraria se eu trocasse de modelo. Explique os trade-offs; só altere o código se eu pedir."
 
 Depuração guiada:
 "Este teste de eval falha: [saída]. Não me dê a correção. Me dê 3 hipóteses ordenadas por probabilidade e como testar cada uma."
