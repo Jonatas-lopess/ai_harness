@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr
     debug: bool = False
     max_steps: int = 10
+    groq_max_retries: int = 2
+    groq_timeout_seconds: float = 60.0
 
     @field_validator("database_url")
     @classmethod

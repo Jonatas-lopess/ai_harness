@@ -6,6 +6,7 @@ from extract import (
     Completion,
     ExtractionError,
     InvalidOutputError,
+    ProviderUnavailableError,
     RefusedError,
     StockMessage,
     TruncatedOutputError,
@@ -98,13 +99,16 @@ def test_sends_schema_and_params() -> None:
 class ScriptedClient:
     """Devolve uma resposta por chamada, na ordem; guarda os argumentos de cada chamada."""
 
-    def __init__(self, *completions: Completion) -> None:
-        self.completions: list[Completion] = list(completions)
+    def __init__(self, *completions: Completion | Exception) -> None:
+        self.completions: list[Completion | Exception] = list(completions)
         self.calls: list[dict[str, Any]] = []  # pyright: ignore[reportExplicitAny]
 
     def complete(self, **kwargs: Any) -> Completion:  # pyright: ignore[reportExplicitAny, reportAny]
         self.calls.append(kwargs)
-        return self.completions.pop(0)
+        item = self.completions.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
 
 
 BAD = Completion("isso não é json", "stop", usage=USAGE)
@@ -155,3 +159,13 @@ def test_retry_does_not_retry_truncated_and_keeps_usage() -> None:
 def test_retry_rejects_zero_attempts() -> None:
     with raises(ValueError):
         _ = extract_with_retry(ScriptedClient(GOOD), "oi", model="m", max_attempts=0)
+
+
+def test_retry_does_not_retry_provider_unavailable_and_keeps_usage() -> None:
+    client = ScriptedClient(BAD, ProviderUnavailableError("down"), GOOD)
+
+    with raises(ProviderUnavailableError) as info:
+        _ = extract_with_retry(client, "oi", model="m")
+
+    assert len(client.calls) == 2
+    assert info.value.usage == Usage(10, 5)
