@@ -93,7 +93,8 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - `PriceTable` é Pydantic com `extra="forbid"`: typo no arquivo falha na carga.
 - `compute_cost(usage, price | None)` só faz a conta; quem busca o preço é outro. Testa sem arquivo, passando `Price` ou `None`.
 - Modelo sem preço: `None` + warning no log, nunca 0 silencioso. O total passa a ser parcial (piso).
-- Custo se **registra**, não se recalcula: gravar o custo e `prices_as_of` na execução. Recalcular execução antiga com tabela nova dá valor errado, e atualizar só a data não corrige.
+- Contabilidade: custo se **registra**, não se recalcula. Gravar custo e `prices_as_of` na execução; recalcular execução antiga com tabela nova dá valor errado, e atualizar só a data não corrige.
+- Comparação de modelos: registrar também os **tokens**. Na comparação, recalcular os dois lados com uma única tabela de preços (único recálculo legítimo). Baseline guardado com modelo, versão do prompt, versão do golden set, score e tokens; só reroda se uma condição mudou ou para checar deriva do provedor.
 - `extract.py` não importa `pricing`; `pricing` importa `extract`. Evita import circular e mantém dinheiro fora da extração.
 - `logging.getLogger(__name__)` = logger por módulo. `caplog` captura logs nos testes.
 - Chamada real: 201 tokens de entrada + 56 de saída = US$ 0,00006375, conferido à mão.
