@@ -1,7 +1,14 @@
 from pytest import mark, raises
 
-from extract import ExtractionError, InvalidOutputError, StockMessage, extract_text, extract_with_retry
+from extract import (
+    ExtractionError,
+    InvalidOutputError,
+    StockMessage,
+    extract_text,
+    extract_with_retry,
+)
 from groq_client import GroqClient
+from pricing import load_prices, log_run_cost
 from settings import get_settings
 
 MODEL = "openai/gpt-oss-120b"
@@ -55,3 +62,20 @@ def test_real_retry_exhausts_attempts_on_forced_failure() -> None:
         _ = extract_with_retry(
             client, "Temos 40 parafusos M8 no estoque.", model=MODEL, max_completion_tokens=5, max_attempts=2
         )
+
+
+@mark.integration
+def test_real_run_cost_is_positive_and_matches_usage() -> None:
+    client = GroqClient(get_settings().groq_api_key.get_secret_value())
+    table = load_prices()
+
+    result = extract_with_retry(client, "Temos 40 parafusos M8 no estoque.", model=MODEL)
+    cost = log_run_cost(result, MODEL, table)
+
+    price = table.models[MODEL]
+    expected = (
+        result.usage.prompt_tokens * price.input_per_mtok
+        + result.usage.completion_tokens * price.output_per_mtok
+    ) / 1_000_000
+    assert cost is not None and cost > 0
+    assert cost == expected

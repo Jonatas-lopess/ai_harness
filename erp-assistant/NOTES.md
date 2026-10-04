@@ -86,6 +86,18 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Chamada real forçando falha (`max_completion_tokens=5`, `max_attempts=2`) provou que o 400 do Groq entra no retry e que o loop desiste com a mensagem `after 2 attempts`.
 - Não provado ainda: o feedback corrigindo uma resposta. Fica para as evals (fase 3).
 
+## Custo em dinheiro
+- Preço por 1M tokens, separado para entrada e saída. `custo = (prompt * preço_in + completion * preço_out) / 1_000_000`.
+- Dinheiro em `Decimal`, nunca `float` (`0.1 + 0.2` dá `0.30000000000000004`). `Decimal("0.15")` (de string) é exato; `Decimal(0.15)` (de float) herda o erro binário. Inteiro em centavos não serve: preço por token é fração de centavo.
+- Preços em `prices.json` versionado, com `source`, `effective_date` e `currency`. Não em `.env` (não versionado, diverge entre máquinas) nem hardcoded (mudar preço vira mudança de código).
+- `PriceTable` é Pydantic com `extra="forbid"`: typo no arquivo falha na carga.
+- `compute_cost(usage, price | None)` só faz a conta; quem busca o preço é outro. Testa sem arquivo, passando `Price` ou `None`.
+- Modelo sem preço: `None` + warning no log, nunca 0 silencioso. O total passa a ser parcial (piso).
+- Custo se **registra**, não se recalcula: gravar o custo e `prices_as_of` na execução. Recalcular execução antiga com tabela nova dá valor errado, e atualizar só a data não corrige.
+- `extract.py` não importa `pricing`; `pricing` importa `extract`. Evita import circular e mantém dinheiro fora da extração.
+- `logging.getLogger(__name__)` = logger por módulo. `caplog` captura logs nos testes.
+- Chamada real: 201 tokens de entrada + 56 de saída = US$ 0,00006375, conferido à mão.
+- O custo continua piso no 400 `json_validate_failed` (sem `usage`) e quando o provedor omite `usage`. Entrada em cache é mais barata (US$ 0,075 vs 0,15): ali o valor tende a ser teto.
+
 ## Falta na fase 1
-- Custo em dinheiro (tabela de preço) e registro, hoje só tokens somados.
 - `async/await`, streaming, backoff para rate limit/timeout sem duplicar cobrança.
