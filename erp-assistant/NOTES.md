@@ -100,5 +100,31 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Chamada real: 201 tokens de entrada + 56 de saída = US$ 0,00006375, conferido à mão.
 - O custo continua piso no 400 `json_validate_failed` (sem `usage`) e quando o provedor omite `usage`. Entrada em cache é mais barata (US$ 0,075 vs 0,15): ali o valor tende a ser teto.
 
-## Falta na fase 1
-- `async/await`, streaming, backoff para rate limit/timeout sem duplicar cobrança.
+## Backoff (erro transitório)
+- Dois retries, duas camadas. Saída inválida: o prompt muda (feedback), sem espera, quem faz é `extract_with_retry`. Transitório (429, 408, 409, 5xx, conexão, timeout): mesma requisição, **com espera**, quem faz é o SDK.
+- Backoff exponencial: 0,5s, 1s, 2s... até 8s (`INITIAL_RETRY_DELAY`, `MAX_RETRY_DELAY`). Cresce para não martelar servidor já sobrecarregado. Jitter encurta a espera por sorteio (×0,75 a 1) para clientes que falharam juntos não voltarem juntos. `Retry-After` do servidor (0 < valor <= 60s) vence a conta.
+- O SDK já faz tudo isso (`max_retries=2`, `timeout=60s` por padrão). Não reimplementamos: só fixamos `max_retries` e `timeout` no `GroqClient` (via `Settings`: `groq_max_retries`, `groq_timeout_seconds`).
+- Esgotados os retries, o SDK levanta `RateLimitError`, `InternalServerError`, `APIConnectionError` (`APITimeoutError` é subclasse). O adaptador traduz tudo em `ProviderUnavailableError` (herda `ExtractionError`), para `extract.py` não conhecer o SDK. Cai no `except ExtractionError` existente: não reenvia e o `usage` acumulado sobe junto (custo piso).
+- 429 não é cobrado (rejeitado antes de gerar). Timeout pode ter sido cobrado: custo desconhecido, sem `usage`. O retry interno do SDK é invisível para nós (não sabemos quantas requisições rolaram).
+- Ordem dos `except` só importa quando uma classe herda da outra (`APITimeoutError` dentro de `APIConnectionError`). `BadRequestError` (400), `RateLimitError` (429) e `InternalServerError` (5xx) são irmãs sob `APIStatusError`: a separação "erro nosso x erro do provedor" vem do tipo capturado, não da ordem.
+- Pior caso de requisições HTTP: `(max_attempts - 1) + (1 + max_retries)` = 2 tentativas inválidas (1 requisição cada, SDK não retenta 400) + 1 tentativa com 3 requisições transitórias = 5. Os limites multiplicam parcialmente.
+
+## async/await
+- `async def` devolve **coroutine**, que só roda com `await` ou agendada. Diferente de JS: `Promise` começa na criação. `f()` sem `await` não faz nada (`coroutine was never awaited`).
+- `await` cede o event loop enquanto espera I/O. Uma thread só, concorrência cooperativa. Ponto de entrada: `asyncio.run(main())`. `asyncio.gather` ~ `Promise.all` (devolve lista na ordem).
+- Armadilha: chamada síncrona dentro de `async def` (`Groq`, `time.sleep`) trava o loop. 10 chamadas de 1s com `AsyncGroq` + `gather` levam ~1s; com o cliente síncrono, ~10s (~ `readFileSync` no Node).
+- `AsyncLLMClient` (Protocol) e `AsyncGroqClient` espelham o sync. `aextract_with_retry` repete o laço do sync com `await`: duplicação assumida; mudou a regra de retry, mudar nos dois.
+- `gather` sem teto dispara tudo junto: 500 SKUs viram 429 em massa, e os retries do SDK **amplificam** a carga. O limite vem de `asyncio.Semaphore` (`max_concurrency` em `extract_many`), não dos retries.
+- `extract_many` devolve `list[ExtractionResult | ExtractionError]`: falha de um item vira valor, não derruba o lote, e o custo de todos fica registrado. `except ExtractionError` dentro do `one()`, em vez de `gather(return_exceptions=True)`, porque este também engoliria bug nosso (`TypeError`) como se fosse resultado.
+- `@contextmanager` com `with` comum funciona dentro de `await` (`_translate_errors`), então sync e async compartilham a tradução de erros.
+- Testes async: `asyncio.run(...)` dentro de teste síncrono, sem `pytest-asyncio`. Pico de concorrência medido com contador `in_flight` no cliente falso.
+
+## Tipagem (basedpyright)
+- `**dict[str, Any]` na chamada do SDK gerou 80 warnings (`reportAny`, um por parâmetro de `create`). Corrigido com helpers tipados pelos tipos do SDK (`ChatCompletionMessageParam`, `ResponseFormatResponseFormatJsonSchema`).
+- `@contextmanager` com `-> Iterator[None]` é deprecated: usar `Generator[None]`.
+- `uv run basedpyright`: 0 erros, 0 warnings.
+
+## Fase 1: pendências adiadas
+- Streaming: pouco útil nos jobs batch (saída é JSON validado só no fim). Fica fora.
+- Custo continua piso em: 400 `json_validate_failed`, `ProviderUnavailableError`, provedor sem `usage`. Marcar como "estimado" e guardar a geração que falhou: fase 4 (tracing).
+- Feedback de retry corrigindo uma resposta real: fase 3 (evals).

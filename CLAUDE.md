@@ -92,7 +92,7 @@ Ready-to-copy prompt templates for each cycle step: guide's "Como estudar com a 
 - Setup: `cp .env.example .env` (fill `GROQ_API_KEY`), `docker compose up -d --wait`, `uv sync`.
 - Unit tests (no network, no Docker): `uv run pytest -m "not integration"`.
 - All tests: `uv run pytest`. `integration` marker = needs Postgres (Docker) or real Groq calls (uses free-tier quota).
-- LLM provider: Groq (`groq` SDK), kept behind the `LLMClient` Protocol in `extract.py`; `groq_client.py` is the only file that knows the SDK. No lint/typecheck command yet (basedpyright not installed as a dev dep).
+- LLM provider: Groq (`groq` SDK), kept behind the `LLMClient` Protocol in `extract.py`; `groq_client.py` is the only file that knows the SDK. Typecheck: `uv run basedpyright` (must stay at 0 errors, 0 warnings).
 
 ## Agent skills
 
