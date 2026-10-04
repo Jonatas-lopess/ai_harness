@@ -11,6 +11,7 @@ from extract import (
     TruncatedOutputError,
     Usage,
     extract_text,
+    extract_with_retry,
 )
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
@@ -92,3 +93,65 @@ def test_sends_schema_and_params() -> None:
     assert call["max_completion_tokens"] == 99
     assert call["response_schema"]["additionalProperties"] is False
     assert set(call["response_schema"]["required"]) == {"product_name", "stock_level"}  # pyright: ignore[reportAny]
+
+
+class ScriptedClient:
+    """Devolve uma resposta por chamada, na ordem; guarda os argumentos de cada chamada."""
+
+    def __init__(self, *completions: Completion) -> None:
+        self.completions: list[Completion] = list(completions)
+        self.calls: list[dict[str, Any]] = []  # pyright: ignore[reportExplicitAny]
+
+    def complete(self, **kwargs: Any) -> Completion:  # pyright: ignore[reportExplicitAny, reportAny]
+        self.calls.append(kwargs)
+        return self.completions.pop(0)
+
+
+BAD = Completion("isso não é json", "stop", usage=USAGE)
+GOOD = Completion('{"product_name": "Parafuso", "stock_level": 40}', "stop", usage=USAGE)
+
+
+def test_retry_succeeds_after_invalid_and_sums_usage() -> None:
+    client = ScriptedClient(BAD, GOOD)
+
+    result = extract_with_retry(client, "oi", model="m")
+
+    assert result.value == StockMessage(product_name="Parafuso", stock_level=40)
+    assert result.attempts == 2
+    assert result.usage == Usage(20, 10)
+
+
+def test_retry_feeds_error_back_in_prompt() -> None:
+    client = ScriptedClient(BAD, GOOD)
+
+    _ = extract_with_retry(client, "oi", model="m")
+
+    assert client.calls[0]["user"] == "oi"
+    assert client.calls[1]["user"].startswith("oi")  # pyright: ignore[reportAny]
+    assert "rejeitada" in client.calls[1]["user"]
+
+
+def test_retry_gives_up_after_max_attempts() -> None:
+    client = ScriptedClient(BAD, BAD, BAD, GOOD)
+
+    with raises(InvalidOutputError) as info:
+        _ = extract_with_retry(client, "oi", model="m", max_attempts=3)
+
+    assert len(client.calls) == 3
+    assert info.value.usage == Usage(30, 15)
+
+
+def test_retry_does_not_retry_truncated_and_keeps_usage() -> None:
+    cut = Completion('{"product_name": "Para', "length", usage=USAGE)
+    client = ScriptedClient(BAD, cut, GOOD)
+
+    with raises(TruncatedOutputError) as info:
+        _ = extract_with_retry(client, "oi", model="m")
+
+    assert len(client.calls) == 2
+    assert info.value.usage == Usage(20, 10)
+
+
+def test_retry_rejects_zero_attempts() -> None:
+    with raises(ValueError):
+        _ = extract_with_retry(ScriptedClient(GOOD), "oi", model="m", max_attempts=0)

@@ -66,6 +66,42 @@ class InvalidOutputError(ExtractionError):
     pass
 
 
+@dataclass(frozen=True)
+class ExtractionResult:
+    value: StockMessage
+    usage: Usage  # soma de todas as tentativas, inclusive as que falharam
+    attempts: int
+
+
+def _add_usage(total: Usage, extra: Usage | None) -> Usage:
+    if extra is None:
+        return total
+    return Usage(
+        total.prompt_tokens + extra.prompt_tokens,
+        total.completion_tokens + extra.completion_tokens,
+    )
+
+
+def _call(
+    client: LLMClient, user: str, model: str, max_completion_tokens: int
+) -> Completion:
+    return client.complete(
+        model=model,
+        system=SYSTEM_PROMPT,
+        user=user,
+        response_schema=StockMessage.model_json_schema(),
+        max_completion_tokens=max_completion_tokens,
+    )
+
+
+def _with_feedback(text: str, error: InvalidOutputError) -> str:
+    return (
+        f"{text}\n\n"
+        f"Sua resposta anterior foi rejeitada: {error}\n"
+        "Corrija e responda de novo seguindo o schema."
+    )
+
+
 def extract_text(
     client: LLMClient,
     text: str,
@@ -73,14 +109,45 @@ def extract_text(
     model: str,
     max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
 ) -> StockMessage:
-    completion = client.complete(
-        model=model,
-        system=SYSTEM_PROMPT,
-        user=text,
-        response_schema=StockMessage.model_json_schema(),
-        max_completion_tokens=max_completion_tokens,
-    )
+    return _parse(_call(client, text, model, max_completion_tokens))
 
+
+def extract_with_retry(
+    client: LLMClient,
+    text: str,
+    *,
+    model: str,
+    max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
+    max_attempts: int = 3,
+) -> ExtractionResult:
+    """Reenvia só em `InvalidOutputError`, anexando o erro ao prompt; soma o uso de todas as tentativas."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+
+    total = Usage(0, 0)
+    user = text
+    last_error: InvalidOutputError | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            completion = _call(client, user, model, max_completion_tokens)
+            total = _add_usage(total, completion.usage)
+            value = _parse(completion)
+        except InvalidOutputError as exc:
+            last_error = exc
+            user = _with_feedback(text, exc)
+            continue
+        except ExtractionError as exc:
+            # Sem retry: o erro sobe, mas com o uso acumulado (já inclui esta tentativa).
+            exc.usage = total
+            raise
+        return ExtractionResult(value, total, attempt)
+
+    raise InvalidOutputError(
+        f"invalid output after {max_attempts} attempts: {last_error}", total
+    ) from last_error
+
+
+def _parse(completion: Completion) -> StockMessage:
     if completion.finish_reason == "length":
         raise TruncatedOutputError("output cut at max_completion_tokens", completion.usage)
     if completion.refusal is not None:

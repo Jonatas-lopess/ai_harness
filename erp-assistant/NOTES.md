@@ -63,3 +63,29 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 
 ## Opcional na fase 0
 - `uv add --dev basedpyright` para checar tipos no terminal/CI.
+
+# Fase 1: Chamada ao modelo (notas)
+
+## Retry com limite
+- Reenviar só `InvalidOutputError`. `Truncated` repetido com os mesmos parâmetros trunca de novo; `Refused` não muda.
+- `temperature` controla a aleatoriedade da escolha do próximo token. Com `0` a saída é quase determinística: mesmo prompt, mesma resposta errada. Retry cego não ajuda.
+- Para o retry valer, a entrada muda: o erro de validação vai anexado ao prompt (`_with_feedback`), sempre partindo do texto original, sem acumular feedback antigo.
+- `max_attempts` é o teto. Esgotado, levanta `InvalidOutputError` com `from last_error` (~ `new Error(msg, { cause })`).
+- `try` estreito: só as linhas que podem lançar o que tratamos (`_call`, `_parse`). O `return` fica fora, e `value` só é lido se a validação passou. Mesmo princípio do `with raises(...)` só na linha que falha.
+- `except InvalidOutputError` vem antes de `except ExtractionError`: o Python usa o primeiro `except` que casa, então o mais específico vai primeiro.
+
+## Custo (tokens)
+- `ExtractionResult` devolve valor, `usage` somado e nº de tentativas.
+- O `usage` soma todas as tentativas, inclusive as que falharam. Erro sem retry (ex.: `Truncated` depois de `Invalid`) sobe com o uso acumulado.
+- O 400 `json_validate_failed` do Groq não traz `usage`: o custo reportado é um piso (real >= reportado). Limitação do provedor, não bug nosso.
+- O 400 vem de truncamento (tokens de raciocínio também consomem `max_completion_tokens`) ou saída fora do schema. Com `temperature=0` é quase determinístico, não intermitente.
+- Para depois: marcar custo como "estimado" quando faltar `usage`; ver se o corpo do 400 traz a geração que falhou (feedback melhor); guardar dados do request é a fase 4 (tracing).
+
+## Testes
+- Fake client não prova comportamento do provedor. `ScriptedClient` devolve uma resposta por chamada e prova a lógica do loop (tentativas, soma de uso, feedback no prompt).
+- Chamada real forçando falha (`max_completion_tokens=5`, `max_attempts=2`) provou que o 400 do Groq entra no retry e que o loop desiste com a mensagem `after 2 attempts`.
+- Não provado ainda: o feedback corrigindo uma resposta. Fica para as evals (fase 3).
+
+## Falta na fase 1
+- Custo em dinheiro (tabela de preço) e registro, hoje só tokens somados.
+- `async/await`, streaming, backoff para rate limit/timeout sem duplicar cobrança.

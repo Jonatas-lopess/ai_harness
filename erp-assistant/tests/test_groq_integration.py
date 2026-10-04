@@ -1,6 +1,6 @@
 from pytest import mark, raises
 
-from extract import ExtractionError, StockMessage, extract_text
+from extract import ExtractionError, InvalidOutputError, StockMessage, extract_text, extract_with_retry
 from groq_client import GroqClient
 from settings import get_settings
 
@@ -32,3 +32,26 @@ def test_real_truncation_raises_extraction_error() -> None:
 
     with raises(ExtractionError):
         _ = extract_text(client, "Temos 40 parafusos M8 no estoque.", model=MODEL, max_completion_tokens=5)
+
+
+@mark.integration
+def test_real_retry_happy_path_reports_usage() -> None:
+    client = GroqClient(get_settings().groq_api_key.get_secret_value())
+
+    result = extract_with_retry(client, "Temos 40 parafusos M8 no estoque.", model=MODEL)
+
+    assert result.value.stock_level == 40
+    assert result.attempts == 1
+    assert result.usage.prompt_tokens > 0
+    assert result.usage.completion_tokens > 0
+
+
+@mark.integration
+def test_real_retry_exhausts_attempts_on_forced_failure() -> None:
+    client = GroqClient(get_settings().groq_api_key.get_secret_value())
+
+    # 5 tokens nunca cabem no JSON: o provedor devolve 400 em toda tentativa.
+    with raises(InvalidOutputError, match="after 2 attempts"):
+        _ = extract_with_retry(
+            client, "Temos 40 parafusos M8 no estoque.", model=MODEL, max_completion_tokens=5, max_attempts=2
+        )
