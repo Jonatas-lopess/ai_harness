@@ -1,6 +1,4 @@
 from datetime import date
-from typing import cast
-
 import psycopg
 from pydantic import BaseModel
 from pytest import MonkeyPatch, fixture, mark
@@ -37,7 +35,7 @@ def _call(registry: ToolRegistry, ctx: ToolContext, name: str, args: dict[str, o
 
 
 def test_registry_exposes_the_four_tools(registry: ToolRegistry):
-    names = [cast("str", s["name"]) for s in registry.schemas()]
+    names = [s["name"] for s in registry.schemas()]
 
     assert names == ["low_stock", "recent_sales", "open_purchase_orders", "supplier_lead_time"]
 

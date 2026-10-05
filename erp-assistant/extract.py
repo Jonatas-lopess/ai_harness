@@ -91,7 +91,7 @@ class ExtractionResult:
     attempts: int
 
 
-def _add_usage(total: Usage, extra: Usage | None) -> Usage:
+def add_usage(total: Usage, extra: Usage | None) -> Usage:
     if extra is None:
         return total
     return Usage(
@@ -160,7 +160,7 @@ def extract_with_retry(
     for attempt in range(1, max_attempts + 1):
         try:
             completion = _call(client, user, model, max_completion_tokens)
-            total = _add_usage(total, completion.usage)
+            total = add_usage(total, completion.usage)
             value = _parse(completion)
         except InvalidOutputError as exc:
             last_error = exc
@@ -198,7 +198,7 @@ async def aextract_with_retry(
     for attempt in range(1, max_attempts + 1):
         try:
             completion = await _acall(client, user, model, max_completion_tokens)
-            total = _add_usage(total, completion.usage)
+            total = add_usage(total, completion.usage)
             value = _parse(completion)
         except InvalidOutputError as exc:
             last_error = exc

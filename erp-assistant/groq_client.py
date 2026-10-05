@@ -1,4 +1,4 @@
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
@@ -10,12 +10,25 @@ from groq import (
     InternalServerError,
     RateLimitError,
 )
-from groq.types.chat import ChatCompletion, ChatCompletionMessageParam
+from groq.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessageParam,
+    ChatCompletionToolParam,
+)
 from groq.types.chat.completion_create_params import (
     ResponseFormatResponseFormatJsonSchema,
 )
 
+from agent import (
+    AssistantMessage,
+    ChatResponse,
+    Message,
+    ToolCall,
+    ToolMessage,
+    UserMessage,
+)
 from extract import Completion, InvalidOutputError, ProviderUnavailableError, Usage
+from tools import ToolSchema
 
 JSON_VALIDATE_FAILED = "json_validate_failed"
 
@@ -37,6 +50,56 @@ def _messages(system: str, user: str) -> list[ChatCompletionMessageParam]:
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
+
+
+def _chat_messages(system: str, messages: Sequence[Message]) -> list[ChatCompletionMessageParam]:
+    params: list[ChatCompletionMessageParam] = [{"role": "system", "content": system}]
+    for message in messages:
+        match message:
+            case UserMessage():
+                params.append({"role": "user", "content": message.content})
+            case AssistantMessage():
+                params.append(
+                    {
+                        "role": "assistant",
+                        "content": message.content,
+                        "tool_calls": [
+                            {
+                                "id": c.id,
+                                "type": "function",
+                                "function": {"name": c.name, "arguments": c.arguments},
+                            }
+                            for c in message.tool_calls
+                        ],
+                    }
+                )
+            case ToolMessage():
+                params.append({"role": "tool", "tool_call_id": message.tool_call_id, "content": message.content})
+    return params
+
+
+def _tool_params(tools: Sequence[ToolSchema]) -> list[ChatCompletionToolParam]:
+    return [
+        {
+            "type": "function",
+            "function": {"name": t["name"], "description": t["description"], "parameters": t["parameters"]},
+        }
+        for t in tools
+    ]
+
+
+def _to_chat_response(response: ChatCompletion) -> ChatResponse:
+    choice = response.choices[0]
+    usage = (
+        Usage(response.usage.prompt_tokens, response.usage.completion_tokens)
+        if response.usage is not None
+        else None
+    )
+    calls = tuple(
+        ToolCall(id=c.id, name=c.function.name, arguments=c.function.arguments)
+        for c in choice.message.tool_calls or []
+    )
+    return ChatResponse(AssistantMessage(choice.message.content, calls), choice.finish_reason, usage)
 
 
 def _response_format(
@@ -104,6 +167,26 @@ class GroqClient:
                 temperature=0,
             )
         return _to_completion(response)
+
+    def chat(
+        self,
+        *,
+        model: str,
+        system: str,
+        messages: Sequence[Message],
+        tools: Sequence[ToolSchema],
+        max_completion_tokens: int,
+    ) -> ChatResponse:
+        with _translate_errors():
+            response = self._client.chat.completions.create(
+                model=model,
+                messages=_chat_messages(system, messages),
+                tools=_tool_params(tools),
+                reasoning_effort="low",
+                max_completion_tokens=max_completion_tokens,
+                temperature=0,
+            )
+        return _to_chat_response(response)
 
 
 class AsyncGroqClient:

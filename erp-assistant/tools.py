@@ -3,7 +3,7 @@
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import ClassVar
+from typing import ClassVar, TypedDict
 
 import psycopg
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -21,6 +21,14 @@ class ToolInput(BaseModel):
     """Base dos argumentos de tool. `extra="forbid"`: argumento inventado pelo modelo é rejeitado."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
+class ToolSchema(TypedDict):
+    """O que o modelo vê de cada tool."""
+
+    name: str
+    description: str
+    parameters: dict[str, object]
 
 
 class ToolError(BaseModel):
@@ -74,10 +82,9 @@ class ToolRegistry:
                 raise ValueError(f"duplicate tool name: {tool.name}")
             self._tools[tool.name] = tool
 
-    def schemas(self) -> list[dict[str, object]]:
-        """Nome + descrição + JSON Schema: tudo o que o modelo vê de cada tool."""
+    def schemas(self) -> list[ToolSchema]:
         return [
-            {"name": t.name, "description": t.description, "parameters": t.parameters}
+            ToolSchema(name=t.name, description=t.description, parameters=t.parameters)
             for t in self._tools.values()
         ]
 

@@ -41,8 +41,7 @@ def test_schema_has_name_description_and_parameters():
 
     assert schema["name"] == "echo"
     assert schema["description"] == "Echo n."
-    params = cast("dict[str, object]", schema["parameters"])
-    assert params["required"] == ["n"]
+    assert schema["parameters"]["required"] == ["n"]
 
 
 def test_valid_call_runs_the_function():
