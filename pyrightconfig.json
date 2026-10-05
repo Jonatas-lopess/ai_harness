@@ -1,0 +1,8 @@
+{
+  "include": ["erp-assistant"],
+  "exclude": ["**/.venv", "**/__pycache__"],
+  "extraPaths": ["erp-assistant"],
+  "venvPath": "erp-assistant",
+  "venv": ".venv",
+  "pythonVersion": "3.12"
+}
