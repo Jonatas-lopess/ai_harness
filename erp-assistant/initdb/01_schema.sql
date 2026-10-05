@@ -10,7 +10,8 @@ CREATE TABLE products (
     price DECIMAL(10, 2) NOT NULL,
     stock INT NOT NULL,
     supplier_id INT NOT NULL REFERENCES suppliers(id),
-    safety_stock INT NOT NULL DEFAULT 0 CHECK (safety_stock >= 0)
+    safety_stock INT NOT NULL DEFAULT 0 CHECK (safety_stock >= 0),
+    order_multiple INT NOT NULL DEFAULT 1 CHECK (order_multiple > 0)
 );
 
 CREATE TABLE sales (

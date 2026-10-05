@@ -5,6 +5,8 @@ import psycopg
 from psycopg.rows import class_row
 
 DEFAULT_WINDOW_DAYS = 30
+# Dias de venda que um pedido cobre além do ponto de reposição (política, não derivado).
+DEFAULT_COVER_DAYS = 15
 
 # Agregações no SQL; a regra de negócio fica em Python puro (testável sem banco).
 # Subconsultas em vez de JOIN com vendas e pedidos: dois JOINs multiplicariam linhas.
@@ -14,6 +16,7 @@ SELECT
     p.name,
     p.stock AS on_hand,
     p.safety_stock,
+    p.order_multiple,
     s.lead_time_days,
     COALESCE((
         SELECT SUM(quantity) FROM sales
@@ -37,6 +40,7 @@ class _PositionRow:
     name: str
     on_hand: int
     safety_stock: int
+    order_multiple: int
     lead_time_days: int
     sold_in_window: int
     open_po_qty: int
@@ -50,23 +54,47 @@ class StockPosition:
     open_po_qty: int
     reorder_point: int
     needs_refill: bool
+    suggested_qty: int
+
+
+def _ceil_div(numerator: int, denominator: int) -> int:
+    """Divisão inteira com teto: `/` devolveria float e (31 / 30) * 30 dá 31.000000000000004."""
+    return -(-numerator // denominator)
 
 
 def reorder_point(
     sold_in_window: int, window_days: int, lead_time_days: int, safety_stock: int
 ) -> int:
     """Demanda esperada durante o prazo do fornecedor + estoque de segurança, arredondada para cima."""
-    # Divisão inteira com teto: `/` devolveria float e (31 / 30) * 30 dá 31.000000000000004.
-    expected_demand = -(-(sold_in_window * lead_time_days) // window_days)
-    return expected_demand + safety_stock
+    return _ceil_div(sold_in_window * lead_time_days, window_days) + safety_stock
 
 
 def needs_refill(on_hand: int, open_po_qty: int, reorder_point: int) -> bool:
     return on_hand + open_po_qty < reorder_point
 
 
+def refill_target(
+    reorder_point: int, sold_in_window: int, window_days: int, cover_days: int
+) -> int:
+    """Nível alvo: ponto de reposição + `cover_days` de demanda. A folga evita pedir só até o ponto
+    (estoque chegaria rente ao ponto e o job sinalizaria de novo no dia seguinte)."""
+    return reorder_point + _ceil_div(sold_in_window * cover_days, window_days)
+
+
+def suggested_qty(on_hand: int, open_po_qty: int, target: int, order_multiple: int) -> int:
+    """Quanto falta para o alvo, descontando o que já está a caminho, arredondado PARA CIMA ao
+    múltiplo do fornecedor. Sem falta, 0."""
+    shortfall = target - (on_hand + open_po_qty)
+    if shortfall <= 0:
+        return 0
+    return _ceil_div(shortfall, order_multiple) * order_multiple
+
+
 def stock_positions(
-    conn: psycopg.Connection, as_of: date, window_days: int = DEFAULT_WINDOW_DAYS
+    conn: psycopg.Connection,
+    as_of: date,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+    cover_days: int = DEFAULT_COVER_DAYS,
 ) -> list[StockPosition]:
     params = {"as_of": as_of, "start": as_of - timedelta(days=window_days)}
     with conn.cursor(row_factory=class_row(_PositionRow)) as cur:
@@ -76,6 +104,8 @@ def stock_positions(
         point = reorder_point(
             row.sold_in_window, window_days, row.lead_time_days, row.safety_stock
         )
+        refill = needs_refill(row.on_hand, row.open_po_qty, point)
+        target = refill_target(point, row.sold_in_window, window_days, cover_days)
         positions.append(
             StockPosition(
                 product_id=row.product_id,
@@ -83,13 +113,21 @@ def stock_positions(
                 on_hand=row.on_hand,
                 open_po_qty=row.open_po_qty,
                 reorder_point=point,
-                needs_refill=needs_refill(row.on_hand, row.open_po_qty, point),
+                needs_refill=refill,
+                suggested_qty=(
+                    suggested_qty(row.on_hand, row.open_po_qty, target, row.order_multiple)
+                    if refill
+                    else 0
+                ),
             )
         )
     return positions
 
 
 def low_stock(
-    conn: psycopg.Connection, as_of: date, window_days: int = DEFAULT_WINDOW_DAYS
+    conn: psycopg.Connection,
+    as_of: date,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+    cover_days: int = DEFAULT_COVER_DAYS,
 ) -> list[StockPosition]:
-    return [p for p in stock_positions(conn, as_of, window_days) if p.needs_refill]
+    return [p for p in stock_positions(conn, as_of, window_days, cover_days) if p.needs_refill]

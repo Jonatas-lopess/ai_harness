@@ -128,3 +128,33 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Streaming: pouco útil nos jobs batch (saída é JSON validado só no fim). Fica fora.
 - Custo continua piso em: 400 `json_validate_failed`, `ProviderUnavailableError`, provedor sem `usage`. Marcar como "estimado" e guardar a geração que falhou: fase 4 (tracing).
 - Feedback de retry corrigindo uma resposta real: fase 3 (evals).
+
+# Fase 2: detecção determinística
+
+## Passo 1: ponto de reposição
+- Código calcula, LLM explica. Detecção é SQL + função pura; nenhum LLM nesse passo.
+- `reorder_point = demanda_diaria * lead_time + safety_stock`. `posição = on_hand + open_po_qty`. Sinaliza se `posição < reorder_point` (igual ao ponto não sinaliza).
+- Comparar só `on_hand` gera falso alarme: pedido aberto já cobre e repor de novo duplica compra.
+- `lead_time` entra porque a reposição só chega depois do prazo do fornecedor. Prazo maior sobe o ponto e sinaliza mais cedo; prazo menor sinaliza tarde. Prazo errado = ruptura ou capital parado.
+- Janela de vendas é parâmetro (`window_days`). Janela de 1 dia: pico vira demanda falsa, ponto infla, compra em excesso. Janela longa demais: reage devagar à mudança real.
+- Detecção só sinaliza. Abrir pedido é ação: vira rascunho que humano aprova (princípio 3, assistente só lê).
+- Só pedido `status = 'open'` entra em `open_po_qty`. Recebido já está em `products.stock` (contaria duas vezes). Cancelado nunca chega. `safety_stock` é outra coisa: colchão fixo do produto, não tem relação com pedidos.
+- Janela de vendas é semiaberta `[as_of - N, as_of)`. Dá exatamente N dias (o código divide por `window_days`; incluir o `as_of` seriam N+1 dias e demanda inflada), evita dia parcial subestimando a demanda e evita sobreposição entre janelas consecutivas.
+- `as_of` é parâmetro, o job não lê o relógio: teste determinístico. Seed com datas fixas pelo mesmo motivo.
+- SQL só agrega (vendas somadas, pedidos abertos, estoque, prazo); a regra fica em Python puro e testa sem banco. Subconsultas em vez de dois `JOIN`: JOIN com vendas e pedidos multiplica linhas e infla as somas.
+- Inteiros primeiro, dividir por último. `(31 / 30) * 30` dá `31.000000000000004` e o `ceil` devolveria 32. `-(-(vendas * prazo) // janela)` é teto com divisão inteira exata (`//` ~ `Math.floor(a / b)`, mas exato em inteiro).
+- `class_row(dataclass)` monta cada linha do SQL por nome de coluna e dá tipo (antes: 16 warnings de `Any`). `@dataclass(frozen=True)` ~ interface com campos `readonly` que já gera construtor. `_PositionRow` com underscore é privado só por convenção.
+- Seed com 4 cenários: ruptura, coberto por pedido aberto, falso alarme, pedido recebido (não conta). Mais ruído: venda fora da janela e pedido cancelado, que não podem mudar o resultado.
+- Initdb só roda em volume novo: mudou schema ou seed, `docker compose down -v` e `up -d --wait`. Logo após o `up`, o WSL pode recusar conexão por alguns segundos.
+
+## Passo 2: quantidade sugerida
+- Detecção diz **que** repor; `suggested_qty` diz **quanto**. Calculado em código, nunca pelo LLM.
+- `alvo = reorder_point + demanda de cover_days`; `falta = alvo - (on_hand + open_po_qty)`; `suggested_qty = falta` arredondado **para cima** ao `order_multiple` do fornecedor. Sem falta, 0.
+- Subtrair a posição (não só `on_hand`): senão pede de novo o que já está a caminho.
+- Arredondar para cima: sobra limitada a `multiple - 1`; para baixo ou ao mais próximo arrisca ruptura.
+- Alvo acima do `reorder_point` (`cover_days`): pedir só até o ponto faria o estoque chegar rente a ele e o job sinalizaria de novo no dia seguinte (pedidos pequenos e frequentes, sem folga para pico). `cover_days` define o ciclo: maior = pedidos maiores e raros, ao custo de capital parado, encalhe e vencimento.
+- `cover_days` (política) e `window_days` (histórico para medir demanda) são parâmetros diferentes. `cover_days` não muda o ponto de reposição, só o alvo.
+- Quem decide se há pedido é `needs_refill` (posição < ponto), não o alvo. `covered-by-po` fica abaixo do alvo mas não é sinalizado: quantidade 0. Sem esse portão, todo produto abaixo do alvo viraria pedido.
+- `suggested_qty` é função pura de números e devolve 0 se não falta nada; `stock_positions` junta as duas regras.
+- `_ceil_div` compartilhado: o teto inteiro do passo 1 serve para ponto, alvo e múltiplo.
+- `pytest` sem `-m` roda os testes `integration`, inclusive chamadas reais ao Groq (cota do free-tier). Para mudanças sem provedor: `uv run pytest -m "not integration"`, ou os arquivos de Postgres explícitos (`tests/test_replenishment.py tests/test_db_con.py`).

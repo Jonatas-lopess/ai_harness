@@ -3,7 +3,14 @@ from datetime import date
 import psycopg
 from pytest import mark
 
-from replenishment import low_stock, needs_refill, reorder_point, stock_positions
+from replenishment import (
+    low_stock,
+    needs_refill,
+    refill_target,
+    reorder_point,
+    stock_positions,
+    suggested_qty,
+)
 from settings import get_settings
 
 AS_OF = date(2026, 1, 31)
@@ -42,6 +49,26 @@ def test_reorder_point_without_sales_is_safety_stock():
     assert reorder_point(0, 30, 10, 7) == 7
 
 
+def test_refill_target_adds_cover_days_of_demand():
+    # 300 vendas em 30 dias = 10/dia; 15 dias de cobertura = 150
+    assert refill_target(105, 300, 30, 15) == 255
+
+
+@mark.parametrize(
+    ("on_hand", "open_po_qty", "target", "multiple", "expected"),
+    [
+        (40, 0, 255, 50, 250),  # falta 215 -> sobe ao múltiplo de 50
+        (40, 0, 240, 50, 200),  # falta 200, já é múltiplo: não arredonda a mais
+        (40, 100, 255, 50, 150),  # pedido aberto entra na posição
+        (40, 0, 255, 1, 215),  # sem múltiplo, é a falta exata
+        (300, 0, 255, 50, 0),  # acima do alvo: nada a pedir
+        (255, 0, 255, 50, 0),  # exatamente no alvo: nada a pedir
+    ],
+)
+def test_suggested_qty(on_hand: int, open_po_qty: int, target: int, multiple: int, expected: int):
+    assert suggested_qty(on_hand, open_po_qty, target, multiple) == expected
+
+
 @mark.integration
 def test_stock_positions_from_seed():
     with psycopg.connect(get_settings().database_url.get_secret_value()) as conn:
@@ -53,6 +80,12 @@ def test_stock_positions_from_seed():
     assert positions["received-po"].open_po_qty == 0  # pedido recebido já está no estoque
     # vendas fora da janela (2025-12-01 e a do próprio as_of) não entram na demanda
     assert positions["false-alarm"].reorder_point == 7
+    # alvo 255, posição 40: falta 215 -> 250 (múltiplo 50) e 240 (múltiplo 30)
+    assert positions["rupture"].suggested_qty == 250
+    assert positions["received-po"].suggested_qty == 240
+    # sem sinal, sem quantidade
+    assert positions["covered-by-po"].suggested_qty == 0
+    assert positions["false-alarm"].suggested_qty == 0
 
 
 @mark.integration

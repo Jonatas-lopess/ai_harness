@@ -5,12 +5,12 @@ VALUES
     ('supplier-fast', 5),
     ('supplier-slow', 10);
 
-INSERT INTO products (name, price, stock, supplier_id, safety_stock)
+INSERT INTO products (name, price, stock, supplier_id, safety_stock, order_multiple)
 VALUES
-    ('rupture',        10.00,  40, 2, 5),  -- 10/dia, ponto 105, sem pedido: sinaliza
-    ('covered-by-po',  20.00,  40, 2, 5),  -- igual, mas pedido aberto de 100 cobre
-    ('false-alarm',    30.00, 100, 1, 2),  -- 1/dia, ponto 7, estoque folgado
-    ('received-po',    40.00,  40, 2, 5);  -- igual a rupture; pedido já recebido não conta
+    ('rupture',        10.00,  40, 2, 5, 50),  -- 10/dia, ponto 105, sem pedido: sinaliza
+    ('covered-by-po',  20.00,  40, 2, 5, 50),  -- igual, mas pedido aberto de 100 cobre
+    ('false-alarm',    30.00, 100, 1, 2, 1),  -- 1/dia, ponto 7, estoque folgado
+    ('received-po',    40.00,  40, 2, 5, 30);  -- igual a rupture; pedido já recebido não conta
 
 INSERT INTO sales (product_id, quantity, sale_date)
 VALUES
