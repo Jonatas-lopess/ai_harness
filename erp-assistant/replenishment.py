@@ -33,7 +33,7 @@ ORDER BY p.id
 
 
 @dataclass(frozen=True)
-class _PositionRow:
+class PositionRow:
     """Uma linha do SQL; os campos têm o mesmo nome das colunas (`class_row` monta por nome)."""
 
     product_id: int
@@ -90,6 +90,26 @@ def suggested_qty(on_hand: int, open_po_qty: int, target: int, order_multiple: i
     return _ceil_div(shortfall, order_multiple) * order_multiple
 
 
+def position_from_row(row: PositionRow, window_days: int, cover_days: int) -> StockPosition:
+    """Regra de negócio pura sobre uma linha agregada: o SQL só agrega, a decisão é daqui."""
+    point = reorder_point(row.sold_in_window, window_days, row.lead_time_days, row.safety_stock)
+    refill = needs_refill(row.on_hand, row.open_po_qty, point)
+    target = refill_target(point, row.sold_in_window, window_days, cover_days)
+    return StockPosition(
+        product_id=row.product_id,
+        name=row.name,
+        on_hand=row.on_hand,
+        open_po_qty=row.open_po_qty,
+        reorder_point=point,
+        needs_refill=refill,
+        suggested_qty=(
+            suggested_qty(row.on_hand, row.open_po_qty, target, row.order_multiple)
+            if refill
+            else 0
+        ),
+    )
+
+
 def stock_positions(
     conn: psycopg.Connection,
     as_of: date,
@@ -97,31 +117,9 @@ def stock_positions(
     cover_days: int = DEFAULT_COVER_DAYS,
 ) -> list[StockPosition]:
     params = {"as_of": as_of, "start": as_of - timedelta(days=window_days)}
-    with conn.cursor(row_factory=class_row(_PositionRow)) as cur:
+    with conn.cursor(row_factory=class_row(PositionRow)) as cur:
         rows = cur.execute(_POSITIONS_SQL, params).fetchall()
-    positions: list[StockPosition] = []
-    for row in rows:
-        point = reorder_point(
-            row.sold_in_window, window_days, row.lead_time_days, row.safety_stock
-        )
-        refill = needs_refill(row.on_hand, row.open_po_qty, point)
-        target = refill_target(point, row.sold_in_window, window_days, cover_days)
-        positions.append(
-            StockPosition(
-                product_id=row.product_id,
-                name=row.name,
-                on_hand=row.on_hand,
-                open_po_qty=row.open_po_qty,
-                reorder_point=point,
-                needs_refill=refill,
-                suggested_qty=(
-                    suggested_qty(row.on_hand, row.open_po_qty, target, row.order_multiple)
-                    if refill
-                    else 0
-                ),
-            )
-        )
-    return positions
+    return [position_from_row(row, window_days, cover_days) for row in rows]
 
 
 def low_stock(

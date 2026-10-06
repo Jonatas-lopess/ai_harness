@@ -220,3 +220,18 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 ## Fase 2: fechamento
 - Critério de pronto: "toda quantidade do texto bate com o cálculo; ferramentas somente leitura". Cumprido: a quantidade nunca passa pelo modelo, o texto passa pelo validador, e a leitura somente é garantida no banco (`default_transaction_read_only=on`).
 - Pendências para a fase 3: golden set com falso alarme, fidelidade e recusa; `summary`; falso alarme de números de pergunta/argumento; fidelidade número-item.
+
+# Fase 3: validadores e evals
+
+## Passo 1: golden set de detecção
+- Golden set = **dados** (`Case`: entrada + esperado), não um `test_x` por cenário. Caso novo é uma linha; o runner dá score por grupo (`detection` 13/13, `false_alarm` 11/11) e esse número é o que se guarda e compara depois. `python -m evals.detection` imprime o score e sai com código 1 se algum caso falha.
+- Previsão: A (60+45 = ponto 105, não sinaliza) certa; B sinaliza certo, mas a quantidade era **200**, não 300 (alvo 255, falta 151, `ceil(151/50)` = 4 caixas). Erro típico: usar as vendas (300) no lugar do alvo.
+- Esperados calculados **à mão**, nunca pela função testada: se `suggested_qty` tivesse bug, um esperado derivado dela repetiria o bug e o eval passaria. Resposta do autor à revisão: certa em essência (circularidade).
+- `group` é propriedade derivada de `expected_flagged`, sem campo próprio: dado redundante poderia contradizer.
+- `passed` exige flag **e** quantidade. Acertar a quantidade sinalizando errado não conta.
+- Refatoração: `position_from_row(row, window_days, cover_days)` extraída de `stock_positions`; `PositionRow` público. O eval roda a mesma composição que o SQL usa. SQL só agrega, a regra é Python puro.
+- Eval tem que **saber falhar**: três testes provam que quantidade errada, flag errada e contagem por grupo reprovam.
+- Mutação `<` -> `<=` em `needs_refill` reprova 7 casos, todos com estoque+pedido = ponto: `exactly-at-point-with-po`, `exactly-at-point-no-po`, `po-covers-all`, `zero-stock-zero-demand`, `no-sales-safety-met`, `ceil-boundary-at-point`, `fast-supplier-at-point`. `false_alarm` cai a 4/11. As bordas valem justamente por isso. Autor pulou esta pergunta.
+- `zero-stock-zero-demand` (ponto 0): pega também a regra ingênua "estoque 0 = sinaliza"; com `<=` sinaliza com qtd 0 (alerta sem nada a pedir). `no-sales-safety-met` (ponto vem só da segurança): pega `<=` quando a demanda é zero. O que importa não é "quantidade sem histórico", é **alerta falso com quantidade 0**. O erro de somar segurança de menos é pego pelo caso `safety-stock-only` (grupo `detection`), não por esses dois.
+- Sem chamada ao provedor neste passo (tudo determinístico); a verificação real é o Postgres do seed (testes de `replenishment` e `refill_job_db` seguem verdes).
+- Pendente nos próximos passos: fidelidade (número certo no campo/item errado), recusa, resumo de fechamento, trajetória, score+custo guardados, juiz calibrado, CI.
