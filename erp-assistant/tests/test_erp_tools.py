@@ -46,6 +46,7 @@ def test_low_stock_orders_by_suggested_qty(registry: ToolRegistry, ctx: ToolCont
     assert isinstance(result, LowStockOutput)
     assert [(i.name, i.suggested_qty) for i in result.items] == [("rupture", 250), ("received-po", 240)]
     assert result.total == 2
+    assert result.total_suggested_qty == sum(i.suggested_qty for i in result.items)
     assert result.truncated is False
 
 

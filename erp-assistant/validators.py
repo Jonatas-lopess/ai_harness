@@ -1,0 +1,73 @@
+"""Validador de números: todo número do texto gerado precisa vir de um resultado de tool."""
+
+import re
+from collections.abc import Iterable, Sequence
+from decimal import Decimal
+from typing import cast
+
+from agent import ToolCallRecord
+
+# Número isolado: dígito colado em letra/underscore/dígito é identificador ("A12", "B07"), não número.
+# Separadores só entram se seguidos de dígito, então o ponto final de uma frase fica de fora.
+_NUMBER = re.compile(r"(?<![A-Za-z0-9_])\d+(?:[.,]\d+)*(?![A-Za-z0-9_])")
+_SEPARATOR = re.compile(r"[.,]")
+
+
+def _values(token: str) -> set[Decimal]:
+    """Valores que o texto do número pode representar. "1.250" é 1250 (pt-BR) ou 1,25 (en): ambíguo."""
+    seps = _SEPARATOR.findall(token)
+    if not seps:
+        return {Decimal(token)}
+    parts = _SEPARATOR.split(token)
+    values: set[Decimal] = set()
+    # Todos os separadores são de milhar: mesmo caractere e grupos de 3 dígitos.
+    if len(set(seps)) == 1 and all(len(p) == 3 for p in parts[1:]):
+        values.add(Decimal("".join(parts)))
+    # O último separador é a vírgula decimal; os anteriores, se houver, são de milhar.
+    head, fraction = parts[:-1], parts[-1]
+    head_seps = seps[:-1]
+    if (
+        len(set(head_seps)) <= 1
+        and seps[-1] not in head_seps
+        and all(len(p) == 3 for p in head[1:])
+    ):
+        values.add(Decimal("".join(head) + "." + fraction))
+    return values
+
+
+def _numbers_in(text: str) -> list[tuple[str, set[Decimal]]]:
+    return [(m.group(), _values(m.group())) for m in _NUMBER.finditer(text)]
+
+
+def _collect(value: object, out: set[Decimal]) -> None:
+    """Percorre o resultado da tool: números entram pelo valor, textos pelo mesmo extrator do texto."""
+    if isinstance(value, bool):
+        return  # bool é subclasse de int: `True` não é o número 1
+    if isinstance(value, (int, float)):
+        out.add(Decimal(str(value)))
+    elif isinstance(value, str):
+        for _, values in _numbers_in(value):
+            out |= values
+    elif isinstance(value, dict):
+        for item in cast(dict[str, object], value).values():
+            _collect(item, out)
+    elif isinstance(value, Iterable):
+        for item in value:
+            _collect(item, out)
+
+
+def grounded_numbers(records: Sequence[ToolCallRecord]) -> set[Decimal]:
+    allowed: set[Decimal] = set()
+    for record in records:
+        _collect(record.result.model_dump(mode="json"), allowed)
+    return allowed
+
+
+def ungrounded_numbers(text: str, records: Sequence[ToolCallRecord]) -> list[str]:
+    """Números do texto sem origem nos resultados das tools, como escritos. Lista vazia = aprovado.
+
+    Número ambíguo ("1.250") passa se alguma leitura dele bater com um valor das tools.
+    Não cobre cálculo derivado (somas, percentuais): quem calcula é o código, a tool devolve pronto.
+    """
+    allowed = grounded_numbers(records)
+    return [token for token, values in _numbers_in(text) if not values & allowed]

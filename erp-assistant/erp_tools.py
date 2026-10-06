@@ -41,6 +41,7 @@ class LowStockItem(BaseModel):
 class LowStockOutput(BaseModel):
     items: list[LowStockItem]
     total: int
+    total_suggested_qty: int  # soma de todos os sinalizados, não só dos `items` devolvidos
     truncated: bool
 
 
@@ -59,7 +60,12 @@ def _low_stock(ctx: ToolContext, _args: LowStockInput) -> BaseModel:
         )
         for p in flagged[:MAX_LOW_STOCK_ITEMS]
     ]
-    return LowStockOutput(items=items, total=len(flagged), truncated=len(flagged) > len(items))
+    return LowStockOutput(
+        items=items,
+        total=len(flagged),
+        total_suggested_qty=sum(p.suggested_qty for p in flagged),
+        truncated=len(flagged) > len(items),
+    )
 
 
 # recent_sales ------------------------------------------------------------------------------

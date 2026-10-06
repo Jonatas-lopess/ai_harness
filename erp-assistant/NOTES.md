@@ -185,3 +185,16 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Chamada real (`openai/gpt-oss-120b`, Groq): 2 voltas, 907 tokens de entrada + 177 de saída; chamou `low_stock` com `{}` e o texto citou 250 e 240 (vieram da tool). Não provado ainda com modelo real: JSON de argumento quebrado, argumento errado, e o 400 do Groq para tool call malformada (hoje sobe como `BadRequestError` cru; traduzir quando aparecer). Nada garante que *todo* número do texto veio da tool: passo 5.
 - `pytest -s` passa por filtro do `rtk` que esconde os prints; para ver a saída crua: `rtk proxy uv run pytest ... -s`.
 - Python: `type Message = A | B | C` (3.12) ~ `type Message = A | B | C` em TS; `match message: case UserMessage():` ~ `switch` por tipo (união discriminada).
+
+## Passo 5: validador de números
+- Princípio 2: todo número do texto precisa vir de um resultado de tool. O LLM pode errar dígito, arredondar ou inventar prazo, e o texto continua fluente: relatório normal com número falso. O validador roda depois do modelo, em código: extrai os números do texto, extrai os dos `ToolCallRecord.result` e reprova o que não tem origem.
+- Número é token **isolado**. Dígito colado em letra (`A12`, `B07`) é identificador, não número (`(?<![A-Za-z0-9_])`). Sem isso, o `12` do SKU passa a "originar" um `12 dias` inventado: falso negativo, o pior tipo. Separador só entra se seguido de dígito, então o ponto final da frase fica de fora.
+- Compara **valor** (`Decimal`), não string: `250` = `250.0`, e `1.250` = `1250`. Float erra (`0.1 + 0.2`), `Decimal` não. `1.250` é ambíguo (1250 em pt-BR, 1,25 em en): passa se **alguma** leitura bater com um valor das tools. Com a tool dando `250` reprova, com `1250` aprova. Aceitar qualquer leitura só afrouxa quando o texto é realmente ambíguo.
+- Origem lida do `model_dump(mode="json")`: `int`/`float` entram pelo valor, `bool` fica de fora (`True` não é o número 1), texto passa pelo mesmo extrator do texto gerado.
+- **Cálculo derivado é do código.** Pedi "some o total" e o modelo escreveu `250 + 240 = 490`: o validador reprovou, embora a conta estivesse certa. A correção não é afrouxar o validador para aceitar somas (aceitaria `500` com a mesma facilidade, e não há como separar soma certa de errada sem refazer a conta). A tool devolve o total pronto: `total_suggested_qty`, soma de **todos** os sinalizados, não só dos `items` truncados. Com isso o `490` tem origem. Duas chamadas reais depois: `stray=[]`.
+- A função só devolve a lista de números órfãos (`[]` = aprovado). Quem decide o que fazer (retry com feedback, recusar, marcar) é quem chama; ligar isso ao job é do passo seguinte.
+- Python: `Decimal` ~ `big.js`/`decimal.js` (JS só tem `number` float). `set_a & set_b` é interseção e `set_a - set_b` diferença, como operadores. `isinstance(x, (int, float))` aceita tupla de tipos.
+- Limites abertos:
+  - Números da pergunta e dos argumentos das tools ("últimos 30 dias") reprovam, porque só os resultados são origem. Vai dar falso alarme no texto real do job.
+  - Datas (`2026-10-06`) viram três números soltos e só passam porque o mesmo extrator roda dos dois lados.
+  - Não olha unidade nem associação: `250` citado para o produto errado passa. Conferir número **ligado ao item** é fidelidade (fase 3).

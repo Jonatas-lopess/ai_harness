@@ -7,6 +7,7 @@ from erp_tools import erp_registry
 from groq_client import GroqClient
 from settings import get_settings
 from tools import ToolContext, connect_readonly
+from validators import ungrounded_numbers
 
 MODEL = "openai/gpt-oss-120b"
 AS_OF = date(2026, 1, 31)
@@ -42,3 +43,24 @@ def test_real_agent_calls_low_stock_and_cites_its_numbers() -> None:
     # 250 e 240 vêm do cálculo em código (seed); o modelo só pode repeti-los.
     assert "250" in result.text
     assert "240" in result.text
+
+
+@mark.integration
+def test_real_agent_text_has_no_ungrounded_numbers() -> None:
+    settings = get_settings()
+    client = GroqClient(settings.groq_api_key.get_secret_value())
+
+    with connect_readonly(settings.database_url.get_secret_value()) as conn:
+        result = run_agent(
+            client,
+            erp_registry(),
+            ToolContext(conn=conn, as_of=AS_OF),
+            model=MODEL,
+            system=SYSTEM,
+            user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um? Some o total a pedir.",
+            max_steps=settings.max_steps,
+        )
+
+    stray = ungrounded_numbers(result.text, result.tool_calls)
+    print(f"\ntext={result.text}\nstray={stray}")
+    assert stray == []
