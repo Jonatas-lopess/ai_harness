@@ -32,7 +32,7 @@ Ciclo por etapa, repetido do começo ao fim:
 4. **Leitura guiada**: a IA explica o código e as decisões (com analogias JS/TS quando ajudam). Você lê, questiona e pede mudanças.
 5. **Perguntas de revisão**: você responde 3 perguntas sobre o código; a IA corrige as respostas.
 6. **Chamada real**: rode o provedor de verdade pelo menos uma vez. Teste com simulação não prova o comportamento real do provedor (ex.: o Groq responde HTTP 400, e não `finish_reason="length"`, quando o JSON é cortado).
-7. **Registro**: anote no repositório o que aprendeu e o que quebrou (um `NOTES.md` por fase). Ao escrever com suas palavras, você fixa o conceito.
+7. **Registro**: a IA escreve no repositório o que foi aprendido e o que quebrou (um `NOTES.md` por fase), a partir das suas previsões e respostas de revisão. Decisão do autor para acelerar o aprendizado prático: a IA escreve tudo (código, testes e notas); o autor prevê, lê, questiona e responde às perguntas.
 
 Prompts prontos para copiar e adaptar:
 
@@ -377,7 +377,7 @@ Para acompanhar as atualizações de IA sem quebrar seus produtos, todo upgrade 
 
 - [x] Fase 0: repositório reproduzível com `uv`, Docker Compose e pytest
 - [x] Fase 1: chamada ao modelo com saída validada, retries e custo registrado
-- [ ] Fase 2: job de reposição do ERP com cálculo em código e texto do LLM
+- [x] Fase 2: job de reposição do ERP com cálculo em código e texto do LLM
 - [ ] Fase 3: golden set do ERP rodando em CI, com validador de números
 - [ ] Fase 4: traces com custo e request ID em todas as execuções
 - [ ] Fase 5: `ai-harness` extraído e versionado por tag

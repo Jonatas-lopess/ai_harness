@@ -5,6 +5,8 @@ from collections.abc import Iterable, Sequence
 from decimal import Decimal
 from typing import cast
 
+from pydantic import BaseModel
+
 from agent import ToolCallRecord
 
 # Número isolado: dígito colado em letra/underscore/dígito é identificador ("A12", "B07"), não número.
@@ -56,11 +58,15 @@ def _collect(value: object, out: set[Decimal]) -> None:
             _collect(item, out)
 
 
-def grounded_numbers(records: Sequence[ToolCallRecord]) -> set[Decimal]:
+def _numbers_of(sources: Iterable[BaseModel]) -> set[Decimal]:
     allowed: set[Decimal] = set()
-    for record in records:
-        _collect(record.result.model_dump(mode="json"), allowed)
+    for source in sources:
+        _collect(source.model_dump(mode="json"), allowed)
     return allowed
+
+
+def grounded_numbers(records: Sequence[ToolCallRecord]) -> set[Decimal]:
+    return _numbers_of(record.result for record in records)
 
 
 def ungrounded_numbers(text: str, records: Sequence[ToolCallRecord]) -> list[str]:
@@ -69,5 +75,13 @@ def ungrounded_numbers(text: str, records: Sequence[ToolCallRecord]) -> list[str
     Número ambíguo ("1.250") passa se alguma leitura dele bater com um valor das tools.
     Não cobre cálculo derivado (somas, percentuais): quem calcula é o código, a tool devolve pronto.
     """
-    allowed = grounded_numbers(records)
+    return _ungrounded(text, grounded_numbers(records))
+
+
+def ungrounded_in(text: str, facts: BaseModel) -> list[str]:
+    """Mesma regra, com os fatos que o job mandou no prompt como única origem."""
+    return _ungrounded(text, _numbers_of([facts]))
+
+
+def _ungrounded(text: str, allowed: set[Decimal]) -> list[str]:
     return [token for token, values in _numbers_in(text) if not values & allowed]

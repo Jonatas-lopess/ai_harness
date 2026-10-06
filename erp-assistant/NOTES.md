@@ -198,3 +198,25 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
   - Números da pergunta e dos argumentos das tools ("últimos 30 dias") reprovam, porque só os resultados são origem. Vai dar falso alarme no texto real do job.
   - Datas (`2026-10-06`) viram três números soltos e só passam porque o mesmo extrator roda dos dois lados.
   - Não olha unidade nem associação: `250` citado para o produto errado passa. Conferir número **ligado ao item** é fidelidade (fase 3).
+
+## Passo 6: job de reposição
+- Job noturno é **workflow**, não agente: o código decide os passos (detectar, calcular, pedir texto, validar) e o LLM só escreve no fim. Sem tool calling aqui. O loop do passo 4 fica para pergunta sob demanda.
+- O schema de saída do modelo (`Rationale`) tem só `rationale`. Sem `suggested_qty` no schema, ele não tem onde escrever a quantidade: a garantia é estrutural, não uma conferência depois. O que sobra de risco é o modelo citar número errado **no texto**, e é isso que o validador cobre. `RefillSuggestion` junta os campos do código com o texto do modelo.
+- Os fatos do prompt (`RefillFacts`) são o **contrato do que o modelo pode citar**. Previsão confirmada: sem `lead_time` nos fatos, "o fornecedor leva 12 dias" reprova (12 inventado). Quer o prazo na explicação? Ele entra nos fatos. Mesma regra para `window_days`: a correção do falso alarme de "30 dias" é mandar o valor nos fatos, não aceitar números dos argumentos ou da pergunta (argumento é escolha do modelo, não é origem confiável).
+- **Um item por chamada**, com os fatos daquele item como única origem. Ganho: o `240` de outro produto reprova no texto do produto errado (no lote a origem seria a união dos fatos e esse furo voltaria); retry com feedback reenvia só o item que falhou; isolamento de falha. Custo: N chamadas e o system prompt reenviado N vezes. Lote exigiria tipar entrada e saída e casar cada resposta ao item pelo `product_id` (o modelo pode omitir, duplicar ou reordenar). Com centenas de itens o certo é lote pequeno de tamanho fixo, não o job inteiro numa chamada.
+- Falha de um item **degrada**, não derruba o job: depois de `max_attempts` reprovações (ou truncamento/recusa), `rationale=None` e `rationale_error` preenchido; a quantidade, que vem do código, continua valendo. Alternativas rejeitadas: (a) falhar o job inteiro perde todos os itens por causa de um; (c) emitir o texto reprovado mesmo assim leva ao erro, e é o único caso crítico. `None` explícito, nunca string vazia que pareça normal.
+- Critério para degradar ou subir: "o problema é deste item?". `TruncatedOutputError` e `RefusedError` são do item e retry repetiria igual: degrada sem retry. `ProviderUnavailableError` é infraestrutura: tentar os outros itens só martelaria um provedor fora do ar. Sobe, com o `usage` acumulado (`exc.usage`), e o job pode rodar de novo (idempotência: fase 7).
+- Texto em branco vira `InvalidOutputError` e entra no retry. A checagem é no código, não no schema (`minLength`), porque o modo strict do provedor pode não aceitar esse campo do JSON Schema.
+- Prioridade (maior `suggested_qty` primeiro) decidida em código, como na tool `low_stock`. `RefillReport` guarda `prompt_version` e `model`: princípio 5, todo resultado diz com qual prompt e modelo foi gerado.
+- Refatoração pequena no que já existia: `parse_completion[T: BaseModel](completion, model)` generaliza o `_parse` (que só conhecia `StockMessage`), e `with_feedback` virou público porque o job reaproveita o mesmo texto de feedback. `ungrounded_in(text, facts)` é o validador do passo 5 com os fatos como origem.
+- Teste do job com banco usa cliente falso (`_Echo`, `_Chain`) e o Postgres do seed: prova que a quantidade vem do código e que um item ruim não derruba os demais. Chamada real (`gpt-oss-120b`): 2 itens, 542 tokens de entrada e 215 de saída, sem retry, textos citando estoque e ponto de reposição.
+- Python: `def parse_completion[T: BaseModel](..., model: type[T]) -> T` ~ `<T extends BaseModel>(model: new () => T): T`: o tipo devolvido acompanha a classe passada. `class RefillSuggestion(RefillFacts)` herda os campos do Pydantic e acrescenta os seus.
+- Limites abertos:
+  - Sem `summary` geral do `RefillReport` do guia: precisa de fatos agregados próprios.
+  - N chamadas por job sem teto de custo por execução: orçamento na fase 8; custo registrado como piso, fase 4.
+  - Fatos sem `lead_time` nem janela de vendas: o modelo não pode explicar "a venda dobrou".
+  - Número ligado ao item errado dentro do mesmo item (ex.: trocar `on_hand` por `reorder_point`) passa: fidelidade, fase 3.
+
+## Fase 2: fechamento
+- Critério de pronto: "toda quantidade do texto bate com o cálculo; ferramentas somente leitura". Cumprido: a quantidade nunca passa pelo modelo, o texto passa pelo validador, e a leitura somente é garantida no banco (`default_transaction_read_only=on`).
+- Pendências para a fase 3: golden set com falso alarme, fidelidade e recusa; `summary`; falso alarme de números de pergunta/argumento; fidelidade número-item.

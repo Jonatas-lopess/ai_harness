@@ -124,7 +124,7 @@ async def _acall(
     )
 
 
-def _with_feedback(text: str, error: InvalidOutputError) -> str:
+def with_feedback(text: str, error: InvalidOutputError) -> str:
     return (
         f"{text}\n\n"
         f"Sua resposta anterior foi rejeitada: {error}\n"
@@ -164,7 +164,7 @@ def extract_with_retry(
             value = _parse(completion)
         except InvalidOutputError as exc:
             last_error = exc
-            user = _with_feedback(text, exc)
+            user = with_feedback(text, exc)
             continue
         except ExtractionError as exc:
             # Sem retry: o erro sobe, mas com o uso acumulado (já inclui esta tentativa).
@@ -202,7 +202,7 @@ async def aextract_with_retry(
             value = _parse(completion)
         except InvalidOutputError as exc:
             last_error = exc
-            user = _with_feedback(text, exc)
+            user = with_feedback(text, exc)
             continue
         except ExtractionError as exc:
             exc.usage = total
@@ -241,7 +241,7 @@ async def extract_many(
     return list(await asyncio.gather(*(one(t) for t in texts)))
 
 
-def _parse(completion: Completion) -> StockMessage:
+def parse_completion[T: BaseModel](completion: Completion, model: type[T]) -> T:
     if completion.finish_reason == "length":
         raise TruncatedOutputError("output cut at max_completion_tokens", completion.usage)
     if completion.refusal is not None:
@@ -250,6 +250,10 @@ def _parse(completion: Completion) -> StockMessage:
         raise InvalidOutputError("empty output", completion.usage)
 
     try:
-        return StockMessage.model_validate_json(completion.content)
+        return model.model_validate_json(completion.content)
     except ValidationError as exc:
         raise InvalidOutputError(f"output does not match schema: {exc}", completion.usage) from exc
+
+
+def _parse(completion: Completion) -> StockMessage:
+    return parse_completion(completion, StockMessage)
