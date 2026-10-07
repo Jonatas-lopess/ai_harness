@@ -257,3 +257,17 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Segunda lacuna documentada (`test_known_gap_forecast_without_numbers_is_accepted`): projeção sem número passa. Passo 4.
 - Bug achado e corrigido: `test_readonly_connection_rejects_writes` falhava desde a fase 2. `with raises(X) and conn_mgr` usa só o último operando do `and`, então `raises` nunca entrava. Correto: `with connect_readonly(url) as conn, raises(X):`. Um teste que nunca rodou verde passou despercebido porque a suíte integration não era rodada inteira.
 - Autor marcou perguntas 2 e 3 como "já visto".
+
+## Passo 4: recusa
+- Previsão do autor: o campo `status` "garante apenas que a LLM entenda que pode recusar". Certa e é o ponto: o campo dá ao modelo uma saída legítima e ao código algo em que ramificar; **não** garante que o modelo escolha certo. Quem decide se ele recusa é o modelo; o código só confere o que dá para conferir sem LLM.
+- `answers.py`: resposta final `STATUS: answered|insufficient_data` na primeira linha, texto depois; `judge()` aplica regras de código:
+  - cabeçalho ausente, status desconhecido, texto vazio -> `rejected`;
+  - número no texto, em qualquer status, tem que vir de tool (recusa com "chuto 500" reprova);
+  - `answered` exige ao menos uma tool **bem-sucedida** (`ToolError` não conta): afirmação sem evidência é rejeitada. Fecha "deve crescer no mês que vem" quando o modelo nem consultou nada.
+  - `rejected` nunca expõe o texto (`text=None`), só o motivo.
+- **A chamada real quebrou a primeira versão.** Pedir "responda SOMENTE com um objeto JSON" com tools ligadas fez o gpt-oss emitir o JSON como tool call chamada `json`/`JSON`, e o Groq respondeu HTTP 400 `tool_use_failed` (4/4 falharam). Roteiro simulado nunca veria isso. Correção: cabeçalho de texto (`STATUS:`) sem a palavra JSON no prompt; validação continua local. Real depois: 4/4 em 3 rodadas (previsão e preço de concorrente recusados; reposição e prazo respondidos com tool).
+- `evals/refusal.py`: 12 casos (roteiros do modelo: tool calls + resposta final) julgados pelas regras. Cobre recusa correta, recusa depois de consultar, resposta com tool, e erros do modelo que o código tem que pegar (sem tool, número inventado, palpite na recusa, número errado, só tool falha, sem cabeçalho, status desconhecido, texto vazio).
+- Autor, pergunta 3: "simulado não prova o modelo real". Complemento: simulado prova as **regras do código** (determinístico, grátis, todo commit); real prova o **comportamento do modelo** e acha o que ninguém imaginou (o 400 acima), ao custo de cota e não determinismo.
+- Lacuna documentada (`test_known_gap_forecast_prose_after_a_real_tool_call_is_accepted`): com tool bem-sucedida e texto "Foram 300 e deve crescer no mês que vem" passa. Só juiz de fidelidade (passo 5).
+- Suíte completa: `test_real_extract_many_async` (fase 1, Groq real) falhou uma vez em 3 rodadas completas e passou nas outras; instável, sem relação com o passo.
+- Perguntas 1 e 2 marcadas "já visto" pelo autor.
