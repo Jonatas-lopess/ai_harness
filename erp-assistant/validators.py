@@ -1,7 +1,7 @@
 """Validador de números: todo número do texto gerado precisa vir de um resultado de tool."""
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from decimal import Decimal
 from typing import cast
 
@@ -85,3 +85,43 @@ def ungrounded_in(text: str, facts: BaseModel) -> list[str]:
 
 def _ungrounded(text: str, allowed: set[Decimal]) -> list[str]:
     return [token for token, values in _numbers_in(text) if not values & allowed]
+
+
+# Fim de oração: pontuação seguida de espaço/fim. "1.250" e "1,5" não quebram (sem espaço depois).
+_CLAUSE_END = re.compile(r"[.;:,!?](?=\s|$)|\n")
+
+
+def mislabeled_numbers(
+    text: str, values: Mapping[str, int], aliases: Mapping[str, Sequence[str]]
+) -> list[str]:
+    """Números que existem nos fatos mas estão ligados ao campo errado. Lista vazia = aprovado.
+
+    Por oração, o rótulo (palavra de `aliases`) mais próximo ANTES do número (ou, se nenhum
+    precede, o mais próximo depois) diz o campo que o texto afirma; o número tem que ser o valor
+    desse campo. Sem rótulo na oração, não julga: o que
+    não tem origem nos fatos já é pego por `ungrounded_in`. Heurística de palavras, não de gramática.
+    """
+    known = {Decimal(v) for v in values.values()}
+    wrong: list[str] = []
+    for clause in _CLAUSE_END.split(text):
+        marks = [
+            (m.start(), m.end(), field)
+            for field, words in aliases.items()
+            for word in words
+            for m in re.finditer(re.escape(word), clause, re.IGNORECASE)
+        ]
+        if not marks:
+            continue
+        for match in _NUMBER.finditer(clause):
+            number_values = _values(match.group())
+            if not number_values & known:
+                continue
+            before = [(match.start() - end, field) for _, end, field in marks if end <= match.start()]
+            after = [(start - match.end(), field) for start, _, field in marks if start >= match.end()]
+            candidates = before or after  # "ponto de 105": o rótulo costuma vir antes do número
+            if not candidates:
+                continue
+            _, field = min(candidates)
+            if Decimal(values[field]) not in number_values:
+                wrong.append(f"{match.group()} (next to '{field}', which is {values[field]})")
+    return wrong

@@ -79,6 +79,21 @@ def test_invented_number_is_retried_with_feedback() -> None:
     assert result.usage == Usage(20, 10)
 
 
+def test_number_on_the_wrong_field_is_retried_with_feedback() -> None:
+    # 40 e 3 existem nos fatos, mas estão trocados: o validador de "existe?" não pega.
+    client = ScriptedClient(
+        ok("O estoque atual é 40, abaixo do ponto de 3."),
+        ok("O estoque atual é 3, abaixo do ponto de 40."),
+    )
+
+    result = explain(client, FACTS, model="m")
+
+    assert result.rationale == "O estoque atual é 3, abaixo do ponto de 40."
+    assert result.attempts == 2
+    assert "wrong field" in client.calls[1]["user"]
+    assert "'on_hand'" in client.calls[1]["user"]
+
+
 def test_number_from_another_item_is_rejected() -> None:
     # 240 é a quantidade de outro produto: só os fatos DESTE item contam como origem.
     client = ScriptedClient(ok("Repor 240."), ok("Repor 240."), ok("Repor 240."))

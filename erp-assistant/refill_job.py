@@ -19,7 +19,7 @@ from extract import (
     with_feedback,
 )
 from replenishment import DEFAULT_COVER_DAYS, DEFAULT_WINDOW_DAYS, low_stock
-from validators import ungrounded_in
+from validators import mislabeled_numbers, ungrounded_in
 
 PROMPT_VERSION = "refill-rationale-v1"
 MAX_COMPLETION_TOKENS = 256
@@ -41,6 +41,23 @@ class RefillFacts(BaseModel):
     open_po_qty: int
     reorder_point: int
     suggested_qty: int
+
+    def labelled_values(self) -> dict[str, int]:
+        return {
+            "on_hand": self.on_hand,
+            "reorder_point": self.reorder_point,
+            "open_po_qty": self.open_po_qty,
+            "suggested_qty": self.suggested_qty,
+        }
+
+
+# Palavras que ligam um número a um campo dos fatos (ver `mislabeled_numbers`).
+FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    "on_hand": ("estoque", "disponível", "disponivel", "em mãos", "on_hand"),
+    "reorder_point": ("ponto", "reorder_point"),
+    "open_po_qty": ("pedido", "a caminho", "em trânsito", "open_po_qty"),
+    "suggested_qty": ("repor", "comprar", "sugerid", "suggested_qty"),
+}
 
 
 class Rationale(BaseModel):
@@ -100,6 +117,11 @@ def explain(
             stray = ungrounded_in(text, facts)
             if stray:
                 raise InvalidOutputError(f"numbers not present in the facts: {stray}", completion.usage)
+            swapped = mislabeled_numbers(text, facts.labelled_values(), FIELD_ALIASES)
+            if swapped:
+                raise InvalidOutputError(
+                    f"numbers attached to the wrong field: {swapped}", completion.usage
+                )
         except InvalidOutputError as exc:
             last_error = exc
             user = with_feedback(base, exc)
