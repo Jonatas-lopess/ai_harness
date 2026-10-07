@@ -88,5 +88,6 @@ def test_exception_from_the_tool_itself_is_not_swallowed():
 
 @mark.integration
 def test_readonly_connection_rejects_writes():
-    with raises(psycopg.errors.ReadOnlySqlTransaction) and connect_readonly(get_settings().database_url.get_secret_value()) as conn:
+    url = get_settings().database_url.get_secret_value()
+    with connect_readonly(url) as conn, raises(psycopg.errors.ReadOnlySqlTransaction):
         _ = conn.execute("UPDATE products SET stock = 0")

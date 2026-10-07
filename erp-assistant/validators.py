@@ -92,13 +92,14 @@ _CLAUSE_END = re.compile(r"[.;:,!?](?=\s|$)|\n")
 
 
 def mislabeled_numbers(
-    text: str, values: Mapping[str, int], aliases: Mapping[str, Sequence[str]]
+    text: str, values: Mapping[str, int | Decimal], aliases: Mapping[str, Sequence[str]]
 ) -> list[str]:
     """Números que existem nos fatos mas estão ligados ao campo errado. Lista vazia = aprovado.
 
     Por oração, o rótulo (palavra de `aliases`) mais próximo ANTES do número (ou, se nenhum
     precede, o mais próximo depois) diz o campo que o texto afirma; o número tem que ser o valor
-    desse campo. Sem rótulo na oração, não julga: o que
+    desse campo. Só valem rótulos entre este número e o vizinho: em "faturamento de R$ 10.950 com
+    465 unidades", `R$` pertence ao 10.950, não ao 465. Sem rótulo na oração, não julga: o que
     não tem origem nos fatos já é pego por `ungrounded_in`. Heurística de palavras, não de gramática.
     """
     known = {Decimal(v) for v in values.values()}
@@ -110,14 +111,24 @@ def mislabeled_numbers(
             for word in words
             for m in re.finditer(re.escape(word), clause, re.IGNORECASE)
         ]
-        if not marks:
-            continue
-        for match in _NUMBER.finditer(clause):
+        numbers = list(_NUMBER.finditer(clause))
+        for i, match in enumerate(numbers):
             number_values = _values(match.group())
             if not number_values & known:
                 continue
-            before = [(match.start() - end, field) for _, end, field in marks if end <= match.start()]
-            after = [(start - match.end(), field) for start, _, field in marks if start >= match.end()]
+            # Um rótulo só vale para o número vizinho: busca entre este número e o anterior/seguinte.
+            floor = numbers[i - 1].end() if i > 0 else 0
+            ceiling = numbers[i + 1].start() if i + 1 < len(numbers) else len(clause)
+            before = [
+                (match.start() - end, field)
+                for start, end, field in marks
+                if start >= floor and end <= match.start()
+            ]
+            after = [
+                (start - match.end(), field)
+                for start, end, field in marks
+                if start >= match.end() and end <= ceiling
+            ]
             candidates = before or after  # "ponto de 105": o rótulo costuma vir antes do número
             if not candidates:
                 continue

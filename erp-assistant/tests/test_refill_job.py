@@ -3,12 +3,8 @@ from typing import Any, cast
 from pytest import raises
 
 from extract import Completion, ProviderUnavailableError, Usage
-from refill_job import (
-    MAX_COMPLETION_TOKENS,
-    Rationale,
-    RefillFacts,
-    explain,
-)
+from narrate import MAX_COMPLETION_TOKENS, Rationale
+from refill_job import RefillFacts, explain
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 FACTS = RefillFacts(

@@ -2,27 +2,15 @@
 
 from dataclasses import dataclass
 from datetime import date
-from typing import ClassVar
 
 import psycopg
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
-from extract import (
-    ExtractionError,
-    InvalidOutputError,
-    LLMClient,
-    RefusedError,
-    TruncatedOutputError,
-    Usage,
-    add_usage,
-    parse_completion,
-    with_feedback,
-)
+from extract import ExtractionError, LLMClient, Usage, add_usage
+from narrate import Explanation, narrate
 from replenishment import DEFAULT_COVER_DAYS, DEFAULT_WINDOW_DAYS, low_stock
-from validators import mislabeled_numbers, ungrounded_in
 
 PROMPT_VERSION = "refill-rationale-v1"
-MAX_COMPLETION_TOKENS = 256
 
 SYSTEM_PROMPT = (
     "Você escreve a justificativa de uma sugestão de reposição de estoque para a equipe de compras. "
@@ -60,14 +48,6 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
-class Rationale(BaseModel):
-    """O que o MODELO preenche: só texto. Sem `suggested_qty` no schema, ele não tem onde escrever."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    rationale: str
-
-
 class RefillSuggestion(RefillFacts):
     # None = o texto do modelo falhou ou foi reprovado; a quantidade (do código) continua valendo.
     rationale: str | None
@@ -82,61 +62,18 @@ class RefillReport:
     model: str
 
 
-@dataclass(frozen=True)
-class Explanation:
-    rationale: str | None
-    error: str | None
-    usage: Usage
-    attempts: int
-
-
 def explain(
     client: LLMClient, facts: RefillFacts, *, model: str, max_attempts: int = 3
 ) -> Explanation:
-    """Pede a justificativa de um item. Texto com número fora dos fatos volta ao modelo com o erro."""
-    if max_attempts < 1:
-        raise ValueError("max_attempts must be >= 1")
-
-    base = facts.model_dump_json()
-    user = base
-    total = Usage(0, 0)
-    last_error: InvalidOutputError | None = None
-    for attempt in range(1, max_attempts + 1):
-        try:
-            completion = client.complete(
-                model=model,
-                system=SYSTEM_PROMPT,
-                user=user,
-                response_schema=Rationale.model_json_schema(),
-                max_completion_tokens=MAX_COMPLETION_TOKENS,
-            )
-            total = add_usage(total, completion.usage)
-            text = parse_completion(completion, Rationale).rationale
-            if not text.strip():
-                raise InvalidOutputError("empty rationale", completion.usage)
-            stray = ungrounded_in(text, facts)
-            if stray:
-                raise InvalidOutputError(f"numbers not present in the facts: {stray}", completion.usage)
-            swapped = mislabeled_numbers(text, facts.labelled_values(), FIELD_ALIASES)
-            if swapped:
-                raise InvalidOutputError(
-                    f"numbers attached to the wrong field: {swapped}", completion.usage
-                )
-        except InvalidOutputError as exc:
-            last_error = exc
-            user = with_feedback(base, exc)
-            continue
-        except (TruncatedOutputError, RefusedError) as exc:
-            # Problema deste item e retry repetiria igual: degrada o item, o resto do job segue.
-            return Explanation(None, str(exc), total, attempt)
-        except ExtractionError as exc:
-            # Provedor fora do ar não é problema do item: sobe, com o uso acumulado.
-            exc.usage = total
-            raise
-        return Explanation(text, None, total, attempt)
-
-    return Explanation(
-        None, f"rationale rejected after {max_attempts} attempts: {last_error}", total, max_attempts
+    """Pede a justificativa de um item de reposição."""
+    return narrate(
+        client,
+        facts,
+        system=SYSTEM_PROMPT,
+        values=facts.labelled_values(),
+        aliases=FIELD_ALIASES,
+        model=model,
+        max_attempts=max_attempts,
     )
 
 

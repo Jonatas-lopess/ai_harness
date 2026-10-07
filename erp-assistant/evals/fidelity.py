@@ -4,12 +4,10 @@ Cada caso passa pelo caminho de produção (`explain`) com um cliente simulado q
 texto do caso. Aprovado = `explain` aceitou o texto. Reprovado esperado = `explain` degradou o item.
 """
 
-import json
 import sys
 from dataclasses import dataclass
-from typing import Any
 
-from extract import Completion, Usage
+from evals.clients import FixedClient
 from refill_job import RefillFacts, explain
 
 # F1: ruptura simples. F2: com pedido aberto. F3: números com separador de milhar. F4: do seed.
@@ -25,7 +23,7 @@ F3 = RefillFacts(
 F4 = RefillFacts(
     product_id=1, name="rupture", on_hand=40, open_po_qty=0, reorder_point=105, suggested_qty=250
 )
-REAL_TEXT = "O estoque atual de 40 unidades está abaixo do ponto de reposição de 105 e não há pedidos em aberto (open_po_qty 0)."  # noqa: E501
+REAL_TEXT = "O estoque atual de 40 unidades está abaixo do ponto de reposição de 105 e não há pedidos em aberto (open_po_qty 0)."
 
 
 @dataclass(frozen=True)
@@ -90,18 +88,8 @@ CASES: tuple[FidelityCase, ...] = (
 )
 
 
-class _FixedClient:
-    """Cliente simulado: responde sempre o mesmo texto, em todas as tentativas."""
-
-    def __init__(self, text: str) -> None:
-        self.text: str = text
-
-    def complete(self, **_: Any) -> Completion:  # pyright: ignore[reportExplicitAny]
-        return Completion(json.dumps({"rationale": self.text}), "stop", usage=Usage(0, 0))
-
-
 def run_case(case: FidelityCase) -> FidelityResult:
-    result = explain(_FixedClient(case.text), case.facts, model="simulated", max_attempts=1)
+    result = explain(FixedClient(case.text), case.facts, model="simulated", max_attempts=1)
     return FidelityResult(case, accepted=result.rationale == case.text)
 
 
