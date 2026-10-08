@@ -1,6 +1,6 @@
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Final
 
 from groq import (
     APIConnectionError,
@@ -29,8 +29,22 @@ from agent import (
 )
 from extract import Completion, InvalidOutputError, ProviderUnavailableError, Usage
 from tools import ToolSchema
+from tracing import current_span
 
 JSON_VALIDATE_FAILED = "json_validate_failed"
+
+# Parâmetros fixos de toda chamada. Uma fonte só: o que vai ao provedor e o que vai ao trace não divergem.
+REASONING_EFFORT: Final = "low"
+TEMPERATURE: Final = 0
+
+
+def _record_request(max_completion_tokens: int) -> None:
+    """Grava no span `llm_call` aberto por quem chamou o que só este arquivo decide. Antes da chamada: falha também foi enviada."""
+    current = current_span()
+    if current is not None:
+        current.set(
+            temperature=TEMPERATURE, reasoning_effort=REASONING_EFFORT, max_completion_tokens=max_completion_tokens
+        )
 
 
 def _error_code(exc: BadRequestError) -> str | None:
@@ -157,14 +171,15 @@ class GroqClient:
         response_schema: dict[str, Any],  # pyright: ignore[reportExplicitAny]
         max_completion_tokens: int,
     ) -> Completion:
+        _record_request(max_completion_tokens)
         with _translate_errors():
             response = self._client.chat.completions.create(
                 model=model,
                 messages=_messages(system, user),
-                reasoning_effort="low",
+                reasoning_effort=REASONING_EFFORT,
                 response_format=_response_format(response_schema),
                 max_completion_tokens=max_completion_tokens,
-                temperature=0,
+                temperature=TEMPERATURE,
             )
         return _to_completion(response)
 
@@ -177,14 +192,15 @@ class GroqClient:
         tools: Sequence[ToolSchema],
         max_completion_tokens: int,
     ) -> ChatResponse:
+        _record_request(max_completion_tokens)
         with _translate_errors():
             response = self._client.chat.completions.create(
                 model=model,
                 messages=_chat_messages(system, messages),
                 tools=_tool_params(tools),
-                reasoning_effort="low",
+                reasoning_effort=REASONING_EFFORT,
                 max_completion_tokens=max_completion_tokens,
-                temperature=0,
+                temperature=TEMPERATURE,
             )
         return _to_chat_response(response)
 
@@ -204,13 +220,14 @@ class AsyncGroqClient:
         response_schema: dict[str, Any],  # pyright: ignore[reportExplicitAny]
         max_completion_tokens: int,
     ) -> Completion:
+        _record_request(max_completion_tokens)
         with _translate_errors():
             response = await self._client.chat.completions.create(
                 model=model,
                 messages=_messages(system, user),
-                reasoning_effort="low",
+                reasoning_effort=REASONING_EFFORT,
                 response_format=_response_format(response_schema),
                 max_completion_tokens=max_completion_tokens,
-                temperature=0,
+                temperature=TEMPERATURE,
             )
         return _to_completion(response)

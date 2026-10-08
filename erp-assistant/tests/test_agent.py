@@ -283,6 +283,16 @@ def test_llm_call_spans_store_only_the_new_output_not_the_whole_history():
     assert not any("messages" in s.attributes or "prompt" in s.attributes for s in llm)
 
 
+def test_agent_span_records_the_tool_schemas_sent_once():
+    chat = ScriptedChat(_call(ToolCall("c1", "echo", '{"n": 7}')), _answer("sete"))
+    sink = _traced(chat)
+
+    [t] = sink.traces
+    agent = next(s for s in t.spans if s.name == "agent")
+    assert agent.attributes["tools"] == list(chat.tools_seen[0])
+    assert [s.attributes for s in t.spans if s.name == "llm_call" and "tools" in s.attributes] == []
+
+
 def test_tool_error_is_flagged_but_the_span_stays_ok():
     sink = _traced(ScriptedChat(_call(ToolCall("c1", "delete_all", "{}")), _answer("ok")))
 

@@ -82,6 +82,12 @@ def current_trace() -> Trace | None:
     return active.trace if active else None
 
 
+def current_span() -> Span | None:
+    """O span em andamento (None fora de um `trace`). Serve a quem sabe algo sobre a chamada, como o adaptador do provedor."""
+    active = _active.get()
+    return active.span if active else None
+
+
 def descendants(trace: Trace, span_id: str) -> list[Span]:
     """Spans abaixo de `span_id` (filhos, netos...), sem o próprio. Isola um job dentro de um trace maior."""
     children: dict[str, list[Span]] = {}

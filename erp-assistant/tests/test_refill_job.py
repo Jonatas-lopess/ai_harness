@@ -163,6 +163,21 @@ def test_trace_separates_the_model_call_from_the_rejection():
     assert check2.status == "ok"
 
 
+def test_trace_records_the_exact_user_text_of_a_retry_and_nothing_on_the_first_attempt():
+    client = ScriptedClient(ok("Repor 250; o fornecedor leva 12 dias."), ok("Repor 250."))
+    sink = MemorySink()
+
+    with trace("job", sink):
+        _ = explain(client, FACTS, model="m")
+
+    [t] = sink.traces
+    call1, call2 = [s for s in t.spans if s.name == "llm_call"]
+    assert "user" not in call1.attributes  # são os fatos, já no span `narrate`
+    assert call2.attributes["user"] == client.calls[1]["user"]  # o que o modelo recebeu de fato
+    assert call2.attributes["user"] != client.calls[0]["user"]
+    assert "12" in str(call2.attributes["user"])  # o motivo da rejeição está no texto enviado
+
+
 def test_trace_records_a_rejected_narration_outcome():
     client = ScriptedClient(*[ok("Repor 999.")] * 3)
     sink = MemorySink()

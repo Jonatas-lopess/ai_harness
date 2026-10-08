@@ -133,7 +133,7 @@ def run_agent(
 
     # System e user entram uma vez só, aqui; cada `llm_call` guarda só o que SAIU da volta.
     # O histórico enviado em qualquer volta = user + as saídas anteriores, na ordem (cresce linear).
-    with span("agent", model=model, system=system, user=user, max_steps=max_steps) as run_span:
+    with span("agent", model=model, system=system, user=user, max_steps=max_steps, tools=tools) as run_span:
         for step in range(1, max_steps + 1):
             with span("llm_call", step=step, model=model) as call_span:
                 try:

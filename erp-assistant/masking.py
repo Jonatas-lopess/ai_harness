@@ -42,9 +42,10 @@ DEFAULT_POLICY = MaskPolicy(
             "step", "attempt", "steps", "attempts", "max_steps", "max_attempts", "model", "prompt_version",
             "prompt_tokens", "completion_tokens", "finish_reason", "cost", "currency", "prices_as_of",
             "cost_complete", "llm_calls", "calls_without_cost", "tool_error", "retry_feedback", "outcome", "name",
+            "temperature", "reasoning_effort", "max_completion_tokens",
         }  # fmt: skip
     ),
-    scrub_keys=frozenset({"user", "system", "content", "tool_calls", "arguments", "result", "facts", "error"}),
+    scrub_keys=frozenset({"user", "system", "content", "tool_calls", "arguments", "result", "facts", "error", "tools"}),
 )
 
 

@@ -82,6 +82,10 @@ def narrate(
                         finish_reason=completion.finish_reason,
                         content=completion.content,
                     )
+                    if user != base:
+                        # Retentativa: o texto enviado (fatos + motivo da rejeição) é a causa direta do texto novo.
+                        # Na primeira tentativa o `user` são os fatos, que já estão no span `narrate`.
+                        call_span.set(user=user)
                 total = add_usage(total, completion.usage)
                 # Chamada ok e texto rejeitado são coisas diferentes: a rejeição fica no span `validate`.
                 with span("validate", attempt=attempt):

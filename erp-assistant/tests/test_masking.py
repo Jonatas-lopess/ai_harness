@@ -145,6 +145,14 @@ def test_every_attribute_the_code_emits_is_classified() -> None:
             chat = ScriptedChat(_call(ToolCall("c1", "echo", '{"n": 1}')), _answer("ok"))
             _ = run_agent(chat, _registry(), _ctx(), model="m", system="s", user="u", max_steps=3)
 
+    # Os parâmetros do provedor vêm do `groq_client`, que os fakes acima não exercitam: emitir um span à mão com eles.
+    with trace("run", MaskingSink(inner)):
+        from groq_client import _record_request  # pyright: ignore[reportPrivateUsage]
+        from tracing import span
+
+        with span("llm_call"):
+            _record_request(256)
+
     leaked = {
         f"{s.name}.{k}": v
         for t in inner.traces
