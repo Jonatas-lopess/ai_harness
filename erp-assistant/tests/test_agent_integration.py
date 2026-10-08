@@ -10,6 +10,7 @@ from erp_tools import erp_registry
 from groq_client import GroqClient
 from settings import get_settings
 from tools import ToolContext, connect_readonly
+from masking import MaskingSink
 from tracing import JsonlSink, trace
 from validators import ungrounded_numbers
 
@@ -103,3 +104,33 @@ def test_real_agent_trace_explains_the_run(tmp_path: Path) -> None:
     tools = [a["name"] for s, a in zip(spans, attrs, strict=True) if s["name"] == "tool"]
     assert tools == [r.name for r in result.tool_calls]
     assert llm[-1]["content"] == result.text
+
+
+@mark.integration
+def test_real_masked_trace_hides_the_cpf_but_keeps_what_explains_the_run(tmp_path: Path) -> None:
+    settings = get_settings()
+    client = GroqClient(settings.groq_api_key.get_secret_value())
+    path = tmp_path / "traces.jsonl"
+    cpf = "123.456.789-09"  # sintético: o modelo recebe a pergunta como está, só o trace é mascarado
+
+    with connect_readonly(settings.database_url.get_secret_value()) as conn:
+        with trace("real-masked", MaskingSink(JsonlSink(path)), request_id="real-3"):
+            result = run_agent(
+                client,
+                erp_registry(),
+                ToolContext(conn=conn, as_of=AS_OF),
+                model=MODEL,
+                system=SYSTEM,
+                user=f"O solicitante (CPF {cpf}) quer saber quais produtos precisam de reposição hoje e quanto pedir.",
+                max_steps=settings.max_steps,
+            )
+
+    text = path.read_text(encoding="utf-8")
+    print(f"\nuser no trace: {cast('dict[str, object]', json.loads(text.splitlines()[0]))['spans']!s:.200}")
+    assert cpf not in text
+    assert "[cpf]" in text
+    recorded = cast("dict[str, object]", json.loads(text))
+    spans = cast("list[dict[str, object]]", recorded["spans"])
+    llm = [cast("dict[str, object]", s["attributes"]) for s in spans if s["name"] == "llm_call"]
+    assert sum(int(str(a["prompt_tokens"])) for a in llm) == result.usage.prompt_tokens  # custo segue legível
+    assert llm[-1]["content"] == result.text  # o texto final segue legível (sem dado pessoal nele)

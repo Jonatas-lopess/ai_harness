@@ -41,6 +41,7 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | `validators.py` | numbers in the text must come from the facts, attached to the right field |
 | `answers.py` | on-demand questions with `STATUS: answered / insufficient_data` and refusal rules |
 | `tracing.py` | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL); `agent.py` and `narrate.py` emit spans (no-op without an active trace) |
+| `masking.py` | `MaskingSink`: allowlist of trace attributes, PII patterns scrubbed from free text, rest masked |
 | `judge.py` | LLM-as-judge for fidelity (different model family than the generator) |
 | `evals/` | golden sets (detection, fidelity, closing, refusal, trajectory), runner, judge calibration |
 | `NOTES.md` | per-step study notes in Portuguese: what was learned, what broke |
