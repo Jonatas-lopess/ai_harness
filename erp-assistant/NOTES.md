@@ -311,3 +311,9 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Autor, perguntas de revisão do passo 7: (1) derivado só se vier da tool (política já fixada); (2) rotular `gap` pela IA enfraquece a calibração (complemento: rotulador e juiz são o mesmo tipo de sistema, erros correlacionam, concordância sai inflada; rótulo que vale é o humano); (3) CI não chama LLM (complemento: determinismo, custo zero, sem secret).
 - Pendente do autor: revisar os 13 rótulos `gap` em `evals/judge_calibration.py`.
 - Decisão do autor: `faithful-refill-no-numbers` e o golden `fidelity/no-numbers` ficam como estão (texto sem número pode ser fiel). Troca por exemplo numérico foi feita e revertida. Demais `gap` sem objeção até aqui.
+
+## CI: primeira execução real (falhou) e correção
+- O workflow rodou no GitHub e reprovou `tests/test_env.py::test_env_url_valid`: `groq_api_key Field required`. O teste definia só `DATABASE_URL`; a chave vinha do `.env` local, que não existe no runner. Passava na máquina do autor e falhava no CI: o CI serviu ao propósito.
+- Pior, achado ao investigar: `test_env_steps_invalid` e `test_env_url_empty` passavam no CI **pelo motivo errado** (campo ausente também lança `ValidationError`). Teste que passa sem testar o que diz é o mesmo problema do `raises(...) and ...` da fase 3.
+- Correção: fixture `autouse` deixa o ambiente conhecido (cwd vazio = sem `.env`; só as duas variáveis obrigatórias, válidas) e cada teste muda uma coisa; `raises(..., match="campo")` confere QUE campo falhou. +2 testes da chave Groq (ausente, prefixo errado), que não tinham cobertura. Verificado localmente sem `.env` e com `env -u DATABASE_URL -u GROQ_API_KEY`: 159 passam, evals 80/80.
+- Regra: teste de unidade não pode depender de arquivo da máquina. Reproduzir o CI localmente = apagar `.env` e as variáveis do ambiente.
