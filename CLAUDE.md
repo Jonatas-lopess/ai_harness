@@ -1,105 +1,49 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+`Guia de Estudo Harness de IA para ERP e Legal.md` (Portuguese) is the source of truth. Read the relevant section before doing real work; this file only holds rules that are not in it. Project overview and status: `README.md`. ERP setup, commands, file map: `erp-assistant/README.md`. Per-step study notes: `erp-assistant/NOTES.md`.
 
-`Guia de Estudo Harness de IA para ERP e Legal.md` (Portuguese) is source of truth — read it, not just this summary, before doing real work. Update this file with real build/lint/test commands once code exists; don't invent them now.
+## Where to look in the guide
 
-## What this project is
-
-Shared library (**harness**) + two independent domain **packs** (ERP, Legal), built incrementally as the author learns AI engineering. Harness owns what's common: LLM calls, tool registry, budgets, output validation, tracing, evals. Each pack owns what's domain-specific: tools, prompts, schemas, validators, tests. ERP and Legal share no data, credentials, or deploy — only code.
-
-- ERP: flags stock-replenishment needs, summarizes checkout/financial data. Nightly stock job, morning financial job, on-demand questions.
-- Legal: surfaces case deadlines, summarizes docket movements. Daily digest, new-movement trigger, on-demand questions.
-- Golden rule — ERP: code computes, LLM explains. Legal: system of record sets dates, LLM only summarizes (never computes/infers a deadline).
-
-Full detail (tools list, risk comparison, Pydantic schemas): guide's "Packs ERP e Legal" section.
-
-## Architecture
-
-```
-ai-harness/                 # library, versioned by tag
-  harness/{runtime,llm,tools,guardrails,tracing,evals,scheduler,approvals}/
-erp-assistant/              # ERP pack + deploy
-  pack/{tools,schemas,policies}.py   prompts/   evals/   app.py
-legal-assistant/            # Legal pack + deploy
-  pack/{tools,schemas,policies}.py   prompts/   evals/   app.py
-```
-
-Each product gets its own sidecar service that imports the harness and loads its pack — own DB, credentials, model config. Host product calls the sidecar (or gets webhooks from it) and reads results from an `ai_insights` table, never raw model text.
-
-Harness owns: LLM gateway (provider, routing, cache, retry), tool registry + MCP client with permission wrapper, agent loop with step/cost budget, `RequestContext`, guardrails/output validation, tracing/audit, eval runner, scheduler/triggers/approval queue.
-
-Pack owns: domain read tools, versioned prompts, output schemas, domain validators/policies, golden-set eval cases, job schedule/triggers.
-
-Core interface sketch (names will drift — check current SDK docs before implementing): guide's "Arquitetura" section, `DomainPack` protocol + `run_job`.
-
-Build order: ERP pack first (most deterministic) → extract `ai-harness` as its own versioned package only after ERP works (phase 5) → build Legal pack against the extracted harness (phase 6). Phase 6 is the abstraction test — if Legal forces a harness change, ERP-specific logic leaked into it; fix the boundary.
-
-## Design principles (non-negotiable)
-
-1. Deterministic core, LLM at the edges — SQL/business rules detect and compute; LLM prioritizes, explains, summarizes.
-2. Output validation — every number/date in generated text must trace to a tool result.
-3. Read-only tools — assistant only reads; actions become drafts a human approves.
-4. Permissions on every call — `RequestContext` (tenant, user, role) filters every tool.
-5. Audit everything — prompt, tools called, results, cost, model version, request ID.
-6. Budgets — step/token/cost limits per run, bounded retries.
-7. Low coupling — business logic in plain Python; orchestration framework only wires pieces, so model/library swaps don't need a rewrite.
-
-Legal extra: procedural deadlines have legal consequences — LLM never computes/infers dates, only presents what the system of record gives, with `source_ref`.
-
-Real data: synthetic/public only during study phases. Real customer data to a model API needs confirmed contract, retention, LGPD basis first; prefer zero-retention or self-hosted for Legal.
-
-## Roadmap (phases 0–8, sequential, don't skip)
-
-| Phase | Deliverable |
+| Need | Section |
 | --- | --- |
-| 0. Foundation | ERP-assistant running with `uv`, Docker Compose Postgres seed, empty tests passing |
-| 1. Model call | Text in → validated Pydantic object out, cost logged, retry on invalid output |
-| 2. ERP deterministic detection | Reorder job: code computes quantity, LLM writes rationale; tools read-only |
-| 3. ERP validators & evals | 20–40 golden-set scenarios; CI fails on wrong number/SKU |
-| 4. Observability | Every run traceable: prompt, tools, result, latency, cost |
-| 5. Harness extraction | `ai-harness` extracted; ERP-assistant imports it; pack swap needs no harness edits |
-| 6. Legal pack | Daily digest with `source_ref` per item; dates match system of record exactly |
-| 7. Triggers & integration | Scheduled/on-demand jobs write `ai_insights`; re-run never duplicates records/cost |
-| 8. Hardening & upgrade | Tenant/role filters, LGPD, prompt-injection tests, budgets; model upgrade compared via evals |
+| Non-negotiable design rules | "Princípios de design" |
+| Harness vs pack split, `DomainPack`, `run_job` | "Arquitetura" |
+| Phases, "ready" criteria, study questions | "Roadmap por fases" |
+| ERP and Legal tools, schemas, risk comparison | "Packs ERP e Legal" |
+| Golden set groups, check priority, `NumbersGrounded` | "Avaliações (evals)" |
+| Threats, `ai_insights`, idempotency, LGPD | "Segurança, privacidade e integração" |
+| Model/SDK upgrade ritual | "Upgrade, glossário e checklist" |
 
-Per-phase study questions and "ready" criteria: guide's "Roadmap por fases" table. Post-phase-8 extras (optional): MCP servers, LangGraph port, RAG in Legal.
+## Rules that outlive the guide
 
-## Evals
+- Golden rules: ERP, code computes and the LLM explains. Legal, the system of record sets every date and the LLM only summarizes, with `source_ref` (never computes or infers a deadline).
+- Build order is fixed: ERP pack, then extract `ai-harness` (phase 5), then Legal against the extracted harness (phase 6). If Legal forces a harness change, ERP logic leaked into it: fix the boundary, not the harness.
+- Phases are sequential. Don't advance past a phase's "ready" criterion. Don't invent build/lint/test commands: record real ones in `erp-assistant/README.md`.
+- Real data: synthetic/public only during study. Real customer data to a model API needs a confirmed contract, retention and LGPD basis first.
+- LLM provider is Groq, behind the `LLMClient` protocol; `groq_client.py` is the only file that knows the SDK.
 
-Start in phase 3, run every change. Golden set per pack, four groups: correct detection, false alarm, fidelity (summary only cites given facts), refusal ("insufficient data" when warranted). Check priority: deterministic (numbers/dates/IDs trace to tool output, schema valid) > trajectory (right tools/order/budget) > fidelity/quality (calibrated LLM-as-judge) > refusal. Simulated model on every commit; real calls before merging prompt/model/SDK changes. Track score + cost per run.
+## Testing conventions
 
-Starter numbers-grounded validator, refine later (doesn't yet handle number formatting or legit derived calculations): guide's "Avaliações (evals)" section, `NumbersGrounded` class.
-
-## Security & integration
-
-Treat all LLM-ingested text (docket entries, free-text ERP fields) as untrusted — read-only tools, retrieved text never grants permission or triggers action, actions are approval-gated drafts. `RequestContext` enforced inside every tool; DB role at minimum privilege. Mask sensitive fields before logging. Per-tenant cost/step budgets. Idempotency key (task + input hash + date) so re-run never duplicates `ai_insights` rows or spend. Rollout: shadow mode → feature flag, few tenants first.
-
-`ai_insights` columns and full threat table: guide's "Segurança, privacidade e integração" section.
-
-## Model/SDK upgrade ritual
-
-Branch → pin version → read release notes for harness impact → real-call eval suite on both packs → compare score/cost/latency to current → investigate regressions in traces → merge only if scores don't drop; record model + prompt version in every trace.
+- CI never calls an LLM: free, deterministic, no secrets. Real-provider tests are marked `integration`, run by hand before merging a prompt/model/SDK change, and at least once per step (fake clients don't prove provider behavior).
+- Unit tests must not depend on the machine: no `.env`, no exported variables, no Docker. Check by running without `.env` and with `env -u DATABASE_URL -u GROQ_API_KEY`.
+- Assert the cause, not just the type: `raises(..., match="field")`. A test that passes for the wrong reason is worse than none.
+- A new eval or validator is proven by mutation: disable the rule, confirm the suite goes red, restore.
+- `basedpyright` stays at 0 errors and 0 warnings.
 
 ## How to work with the study author
 
-Since phase 1 the author asked for a faster approach (they lack Python base): assistant writes the implementation of the current step, strictly within that step's scope (no retry/cost/tracing ahead of time), with tests, and focuses on explanation. Per step: concept explanation with minimal example → author predicts behavior → assistant implements + runs tests → guided walkthrough of code and design decisions (explain Python as deltas from JS/TS) → author answers 3 review questions → at least one real provider call (fake-client tests don't prove provider behavior) → assistant writes the step's entry in the per-phase `NOTES.md` (author's request: assistant writes everything — code, tests and notes — to speed up hands-on learning), then commits. One phase, one new concept per session; don't advance past a phase's "ready" criterion. Don't edit files the author is mid-edit on without saying so; flag problems in their edits instead.
+The author is new to Python (knows JS/TS) and asked for speed: the assistant writes code, tests and notes; the author predicts and reviews.
 
-Ready-to-copy prompt templates for each cycle step: guide's "Como estudar com a IA" section.
+1. Concept with a minimal example, then the author predicts behavior (usually 2 questions).
+2. Assistant implements within the step's scope only (no retry/cost/tracing ahead of time) and runs tests.
+3. Walkthrough of code and decisions; explain Python as deltas from JS/TS.
+4. Author answers 3 review questions ("já visto" is a valid answer; note gaps in the answers).
+5. At least one real provider call.
+6. Assistant writes the step's entry in `erp-assistant/NOTES.md` (honest: what broke, what is unverified, mistakes), then commits.
 
-## Commands (from `erp-assistant/`)
-
-- Setup: `cp .env.example .env` (fill `GROQ_API_KEY`), `docker compose up -d --wait`, `uv sync`.
-- Unit tests (no network, no Docker): `uv run pytest -m "not integration"`.
-- All tests: `uv run pytest`. `integration` marker = needs Postgres (Docker) or real Groq calls (uses free-tier quota).
-- LLM provider: Groq (`groq` SDK), kept behind the `LLMClient` Protocol in `extract.py`; `groq_client.py` is the only file that knows the SDK. Typecheck: `uv run basedpyright` (must stay at 0 errors, 0 warnings).
+One phase, one new concept per session. Don't edit files the author is mid-edit on without saying so; flag problems in their edits instead. Decisions the author makes (labels, policies) go in `NOTES.md` so they aren't reopened.
 
 ## Agent skills
 
-### Issue tracker
-
-Issues tracked as local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
-
-### Domain docs
-
-Single-context: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+- Issue tracker: local markdown under `.scratch/`. See `docs/agents/issue-tracker.md`.
+- Domain docs: single context, `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
