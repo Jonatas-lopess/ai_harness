@@ -18,6 +18,7 @@ from agent import (
 )
 from extract import InvalidOutputError, ProviderUnavailableError, TruncatedOutputError, Usage
 from tools import ToolContext, ToolError, ToolInput, ToolRegistry, ToolSchema, make_tool
+from tracing import MemorySink, span, trace
 
 AS_OF = date(2026, 1, 31)
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
@@ -239,3 +240,78 @@ def test_bug_inside_a_tool_is_not_swallowed():
 def test_max_steps_must_be_positive():
     with raises(ValueError):
         _ = _run(ScriptedChat(), max_steps=0)
+
+
+def _traced(client: ScriptedChat, max_steps: int = 5) -> MemorySink:
+    sink = MemorySink()
+    with trace("job", sink, request_id="req-1"):
+        try:
+            _ = _run(client, max_steps)
+        except Exception:
+            pass
+    return sink
+
+
+def test_trace_has_one_llm_call_per_step_and_one_tool_span_per_call():
+    sink = _traced(ScriptedChat(_call(ToolCall("c1", "echo", '{"n": 7}')), _answer("sete")))
+
+    [t] = sink.traces
+    assert [s.name for s in t.spans] == ["job", "agent", "llm_call", "tool", "llm_call"]
+    root, agent, llm1, tool, llm2 = t.spans
+    assert {llm1.parent_id, tool.parent_id, llm2.parent_id} == {agent.span_id}
+    assert agent.parent_id == root.span_id
+    assert agent.attributes["system"] == "s"
+    assert agent.attributes["user"] == "pergunta"
+    assert agent.attributes["steps"] == 2
+    assert llm1.attributes["prompt_tokens"] == 10
+    assert llm1.attributes["finish_reason"] == "tool_calls"
+    assert llm1.attributes["tool_calls"] == [{"id": "c1", "name": "echo", "arguments": '{"n": 7}'}]
+    assert llm2.attributes["content"] == "sete"
+    assert tool.attributes["name"] == "echo"
+    assert tool.attributes["arguments"] == '{"n": 7}'
+    assert tool.attributes["result"] == '{"n":7}'
+    assert tool.attributes["tool_error"] is False
+
+
+def test_llm_call_spans_store_only_the_new_output_not_the_whole_history():
+    sink = _traced(ScriptedChat(*[_call(ToolCall(f"c{i}", "ping", "{}")) for i in range(2)], _answer("fim")))
+
+    [t] = sink.traces
+    llm = [s for s in t.spans if s.name == "llm_call"]
+    assert [s.attributes["content"] for s in llm] == [None, None, "fim"]
+    assert not any("messages" in s.attributes or "prompt" in s.attributes for s in llm)
+
+
+def test_tool_error_is_flagged_but_the_span_stays_ok():
+    sink = _traced(ScriptedChat(_call(ToolCall("c1", "delete_all", "{}")), _answer("ok")))
+
+    [t] = sink.traces
+    [tool] = [s for s in t.spans if s.name == "tool"]
+    assert tool.attributes["tool_error"] is True
+    assert tool.status == "ok"
+    assert "unknown tool" in str(tool.attributes["result"])
+
+
+def test_provider_failure_marks_the_llm_call_span_with_the_cause():
+    sink = _traced(ScriptedChat(ProviderUnavailableError("fora do ar", Usage(0, 0))))
+
+    [t] = sink.traces
+    [llm] = [s for s in t.spans if s.name == "llm_call"]
+    assert llm.status == "error"
+    assert llm.error is not None and "fora do ar" in llm.error
+    assert llm.duration_ms is not None
+
+
+def test_budget_exhaustion_shows_in_the_agent_span():
+    sink = _traced(ScriptedChat(*[_call(ToolCall(f"c{i}", "ping", "{}")) for i in range(3)]), max_steps=3)
+
+    [t] = sink.traces
+    [agent] = [s for s in t.spans if s.name == "agent"]
+    assert agent.status == "error"
+    assert agent.error is not None and "no final answer after 3 steps" in agent.error
+
+
+def test_agent_runs_the_same_without_an_active_trace():
+    with span("outside"):  # sem trace: nada é gravado e nada quebra
+        result = _run(ScriptedChat(_answer("pronto")))
+    assert result.text == "pronto"

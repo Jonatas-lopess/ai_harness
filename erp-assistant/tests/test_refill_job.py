@@ -5,6 +5,7 @@ from pytest import raises
 from extract import Completion, ProviderUnavailableError, Usage
 from narrate import MAX_COMPLETION_TOKENS, Rationale
 from refill_job import RefillFacts, explain
+from tracing import MemorySink, trace
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 FACTS = RefillFacts(
@@ -138,3 +139,37 @@ def test_provider_failure_propagates_with_accumulated_usage() -> None:
 def test_max_attempts_must_be_positive() -> None:
     with raises(ValueError):
         _ = explain(ScriptedClient(), FACTS, model="m", max_attempts=0)
+
+
+def test_trace_separates_the_model_call_from_the_rejection():
+    client = ScriptedClient(ok("Repor 250; o fornecedor leva 12 dias."), ok("Repor 250."))
+    sink = MemorySink()
+
+    with trace("job", sink):
+        _ = explain(client, FACTS, model="m")
+
+    [t] = sink.traces
+    assert [s.name for s in t.spans] == ["job", "narrate", "llm_call", "validate", "llm_call", "validate"]
+    _, narrate_span, call1, check1, call2, check2 = t.spans
+    assert narrate_span.attributes["facts"] == FACTS.model_dump_json()
+    assert narrate_span.attributes["outcome"] == "accepted"
+    assert narrate_span.attributes["attempts"] == 2
+    assert call1.status == "ok"  # a chamada funcionou; o texto é que foi reprovado
+    assert call1.attributes["content"] == '{"rationale": "Repor 250; o fornecedor leva 12 dias."}'
+    assert check1.status == "error"
+    assert check1.error is not None and "numbers not present in the facts" in check1.error
+    assert call1.attributes["retry_feedback"] is False
+    assert call2.attributes["retry_feedback"] is True
+    assert check2.status == "ok"
+
+
+def test_trace_records_a_rejected_narration_outcome():
+    client = ScriptedClient(*[ok("Repor 999.")] * 3)
+    sink = MemorySink()
+
+    with trace("job", sink):
+        _ = explain(client, FACTS, model="m")
+
+    [narrate_span] = [s for s in sink.traces[0].spans if s.name == "narrate"]
+    assert narrate_span.attributes["outcome"] == "rejected"
+    assert narrate_span.attributes["attempts"] == 3

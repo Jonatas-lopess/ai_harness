@@ -15,6 +15,7 @@ from extract import (
     add_usage,
 )
 from tools import ToolContext, ToolError, ToolRegistry, ToolSchema
+from tracing import span
 
 DEFAULT_MAX_COMPLETION_TOKENS = 1024
 
@@ -129,35 +130,52 @@ def run_agent(
     messages: list[Message] = [UserMessage(user)]
     tools = registry.schemas()
 
-    for step in range(1, max_steps + 1):
-        try:
-            response = client.chat(
-                model=model,
-                system=system,
-                messages=messages,
-                tools=tools,
-                max_completion_tokens=max_completion_tokens,
-            )
-        except ExtractionError as exc:
-            exc.usage = total  # erro do provedor não traz uso; sobe com o acumulado
-            raise
-        total = add_usage(total, response.usage)
+    # System e user entram uma vez só, aqui; cada `llm_call` guarda só o que SAIU da volta.
+    # O histórico enviado em qualquer volta = user + as saídas anteriores, na ordem (cresce linear).
+    with span("agent", model=model, system=system, user=user, max_steps=max_steps) as run_span:
+        for step in range(1, max_steps + 1):
+            with span("llm_call", step=step, model=model) as call_span:
+                try:
+                    response = client.chat(
+                        model=model,
+                        system=system,
+                        messages=messages,
+                        tools=tools,
+                        max_completion_tokens=max_completion_tokens,
+                    )
+                except ExtractionError as exc:
+                    exc.usage = total  # erro do provedor não traz uso; sobe com o acumulado
+                    raise
+                message = response.message
+                usage = response.usage
+                call_span.set(
+                    prompt_tokens=usage.prompt_tokens if usage else None,
+                    completion_tokens=usage.completion_tokens if usage else None,
+                    finish_reason=response.finish_reason,
+                    content=message.content,
+                    tool_calls=[{"id": c.id, "name": c.name, "arguments": c.arguments} for c in message.tool_calls],
+                )
+            total = add_usage(total, response.usage)
 
-        message = response.message
-        messages.append(message)
+            messages.append(message)
 
-        if not message.tool_calls:
-            if response.finish_reason == "length":
-                raise TruncatedOutputError("final answer cut at max_completion_tokens", total)
-            if not message.content:
-                raise InvalidOutputError("empty final answer", total)
-            return AgentResult(message.content, total, step, tuple(records))
+            if not message.tool_calls:
+                if response.finish_reason == "length":
+                    raise TruncatedOutputError("final answer cut at max_completion_tokens", total)
+                if not message.content:
+                    raise InvalidOutputError("empty final answer", total)
+                run_span.set(steps=step, prompt_tokens=total.prompt_tokens, completion_tokens=total.completion_tokens)
+                return AgentResult(message.content, total, step, tuple(records))
 
-        # Toda tool_call precisa de uma resposta, inclusive quando vêm várias na mesma volta.
-        for call in message.tool_calls:
-            parsed = _parse_arguments(call.arguments)
-            result = parsed if isinstance(parsed, ToolError) else registry.call(call.name, ctx, parsed)
-            records.append(ToolCallRecord(call.name, call.arguments, result))
-            messages.append(ToolMessage(call.id, result.model_dump_json()))
+            # Toda tool_call precisa de uma resposta, inclusive quando vêm várias na mesma volta.
+            for call in message.tool_calls:
+                with span("tool", name=call.name, arguments=call.arguments) as tool_span:
+                    parsed = _parse_arguments(call.arguments)
+                    result = parsed if isinstance(parsed, ToolError) else registry.call(call.name, ctx, parsed)
+                    # ToolError é dado devolvido ao modelo, não falha do código: o span fica "ok" e o atributo
+                    # `tool_error` deixa achar essas tools no trace.
+                    tool_span.set(result=result.model_dump_json(), tool_error=isinstance(result, ToolError))
+                records.append(ToolCallRecord(call.name, call.arguments, result))
+                messages.append(ToolMessage(call.id, result.model_dump_json()))
 
-    raise BudgetExceededError(f"no final answer after {max_steps} steps", total, tuple(records))
+        raise BudgetExceededError(f"no final answer after {max_steps} steps", total, tuple(records))

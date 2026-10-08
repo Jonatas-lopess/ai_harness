@@ -107,6 +107,7 @@ def _open(
 def trace(
     name: str,
     sink: TraceSink,
+    /,
     *,
     request_id: str | None = None,
     clock: Callable[[], float] = time.perf_counter,
@@ -123,9 +124,9 @@ def trace(
 
 @contextmanager
 def span(
-    name: str, *, clock: Callable[[], float] = time.perf_counter, **attributes: object
+    name: str, /, *, clock: Callable[[], float] = time.perf_counter, **attributes: object
 ) -> Generator[Span]:
-    """Abre um span filho do span ativo. Sem trace ativo, o código roda igual e nada é gravado."""
+    """Abre um span filho do span ativo. `name` é só posicional: `name=` vira atributo (ex.: nome da tool). Sem trace ativo, o código roda igual e nada é gravado."""
     current = _active.get()
     if current is None:
         yield Span("-", "-", None, name, _now(), attributes=dict(attributes))

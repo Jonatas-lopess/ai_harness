@@ -22,6 +22,7 @@ from extract import (
     parse_completion,
     with_feedback,
 )
+from tracing import span
 from validators import mislabeled_numbers, ungrounded_in
 
 MAX_COMPLETION_TOKENS = 256
@@ -62,40 +63,55 @@ def narrate(
     user = base
     total = Usage(0, 0)
     last_error: InvalidOutputError | None = None
-    for attempt in range(1, max_attempts + 1):
-        try:
-            completion = client.complete(
-                model=model,
-                system=system,
-                user=user,
-                response_schema=Rationale.model_json_schema(),
-                max_completion_tokens=MAX_COMPLETION_TOKENS,
-            )
-            total = add_usage(total, completion.usage)
-            text = parse_completion(completion, Rationale).rationale
-            if not text.strip():
-                raise InvalidOutputError("empty rationale", completion.usage)
-            stray = ungrounded_in(text, facts)
-            if stray:
-                raise InvalidOutputError(f"numbers not present in the facts: {stray}", completion.usage)
-            swapped = mislabeled_numbers(text, values, aliases)
-            if swapped:
-                raise InvalidOutputError(
-                    f"numbers attached to the wrong field: {swapped}", completion.usage
-                )
-        except InvalidOutputError as exc:
-            last_error = exc
-            user = with_feedback(base, exc)
-            continue
-        except (TruncatedOutputError, RefusedError) as exc:
-            # Problema deste texto e retry repetiria igual: degrada, o resto do job segue.
-            return Explanation(None, str(exc), total, attempt)
-        except ExtractionError as exc:
-            # Provedor fora do ar não é problema do texto: sobe, com o uso acumulado.
-            exc.usage = total
-            raise
-        return Explanation(text, None, total, attempt)
+    # Fatos entram uma vez, aqui; cada tentativa guarda só o que o modelo devolveu e por que foi (ou não) aceito.
+    with span("narrate", facts=base, system=system, model=model, max_attempts=max_attempts) as run_span:
+        for attempt in range(1, max_attempts + 1):
+            try:
+                with span("llm_call", attempt=attempt, model=model, retry_feedback=user != base) as call_span:
+                    completion = client.complete(
+                        model=model,
+                        system=system,
+                        user=user,
+                        response_schema=Rationale.model_json_schema(),
+                        max_completion_tokens=MAX_COMPLETION_TOKENS,
+                    )
+                    usage = completion.usage
+                    call_span.set(
+                        prompt_tokens=usage.prompt_tokens if usage else None,
+                        completion_tokens=usage.completion_tokens if usage else None,
+                        finish_reason=completion.finish_reason,
+                        content=completion.content,
+                    )
+                total = add_usage(total, completion.usage)
+                # Chamada ok e texto rejeitado são coisas diferentes: a rejeição fica no span `validate`.
+                with span("validate", attempt=attempt):
+                    text = parse_completion(completion, Rationale).rationale
+                    if not text.strip():
+                        raise InvalidOutputError("empty rationale", completion.usage)
+                    stray = ungrounded_in(text, facts)
+                    if stray:
+                        raise InvalidOutputError(f"numbers not present in the facts: {stray}", completion.usage)
+                    swapped = mislabeled_numbers(text, values, aliases)
+                    if swapped:
+                        raise InvalidOutputError(
+                            f"numbers attached to the wrong field: {swapped}", completion.usage
+                        )
+            except InvalidOutputError as exc:
+                last_error = exc
+                user = with_feedback(base, exc)
+                continue
+            except (TruncatedOutputError, RefusedError) as exc:
+                # Problema deste texto e retry repetiria igual: degrada, o resto do job segue.
+                run_span.set(attempts=attempt, outcome="degraded", error=str(exc))
+                return Explanation(None, str(exc), total, attempt)
+            except ExtractionError as exc:
+                # Provedor fora do ar não é problema do texto: sobe, com o uso acumulado.
+                exc.usage = total
+                raise
+            run_span.set(attempts=attempt, outcome="accepted")
+            return Explanation(text, None, total, attempt)
 
-    return Explanation(
-        None, f"rationale rejected after {max_attempts} attempts: {last_error}", total, max_attempts
-    )
+        run_span.set(attempts=max_attempts, outcome="rejected")
+        return Explanation(
+            None, f"rationale rejected after {max_attempts} attempts: {last_error}", total, max_attempts
+        )

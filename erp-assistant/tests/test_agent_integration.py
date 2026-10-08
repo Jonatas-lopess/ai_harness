@@ -1,4 +1,7 @@
+import json
 from datetime import date
+from pathlib import Path
+from typing import cast
 
 from pytest import mark
 
@@ -7,6 +10,7 @@ from erp_tools import erp_registry
 from groq_client import GroqClient
 from settings import get_settings
 from tools import ToolContext, connect_readonly
+from tracing import JsonlSink, trace
 from validators import ungrounded_numbers
 
 MODEL = "openai/gpt-oss-120b"
@@ -64,3 +68,38 @@ def test_real_agent_text_has_no_ungrounded_numbers() -> None:
     stray = ungrounded_numbers(result.text, result.tool_calls)
     print(f"\ntext={result.text}\nstray={stray}")
     assert stray == []
+
+
+@mark.integration
+def test_real_agent_trace_explains_the_run(tmp_path: Path) -> None:
+    settings = get_settings()
+    client = GroqClient(settings.groq_api_key.get_secret_value())
+    path = tmp_path / "traces.jsonl"
+
+    with connect_readonly(settings.database_url.get_secret_value()) as conn:
+        with trace("real-agent", JsonlSink(path), request_id="real-1"):
+            result = run_agent(
+                client,
+                erp_registry(),
+                ToolContext(conn=conn, as_of=AS_OF),
+                model=MODEL,
+                system=SYSTEM,
+                user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um?",
+                max_steps=settings.max_steps,
+            )
+
+    [line] = path.read_text(encoding="utf-8").splitlines()
+    recorded = cast("dict[str, object]", json.loads(line))
+    spans = cast("list[dict[str, object]]", recorded["spans"])
+    attrs = [cast("dict[str, object]", s["attributes"]) for s in spans]
+    for s, a in zip(spans, attrs, strict=True):
+        print(f"{s['name']!s:9} {s['duration_ms']!s:>22}ms {s['status']} {list(a)}")
+
+    assert recorded["trace_id"] == "real-1"
+    llm = [a for s, a in zip(spans, attrs, strict=True) if s["name"] == "llm_call"]
+    assert len(llm) == result.steps
+    # O que o trace diz bate com o que a execução devolveu: é o critério "explicar a resposta pelo trace".
+    assert sum(int(str(a["prompt_tokens"])) for a in llm) == result.usage.prompt_tokens
+    tools = [a["name"] for s, a in zip(spans, attrs, strict=True) if s["name"] == "tool"]
+    assert tools == [r.name for r in result.tool_calls]
+    assert llm[-1]["content"] == result.text
