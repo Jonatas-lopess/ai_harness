@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from extract import LLMClient, Usage, add_usage, parse_completion
 
-JUDGE_PROMPT_VERSION = "judge-v1"
+JUDGE_PROMPT_VERSION = "judge-v2"
 MAX_COMPLETION_TOKENS = 400
 
 Verdict = Literal["faithful", "unfaithful"]
@@ -23,7 +23,8 @@ Verdict = Literal["faithful", "unfaithful"]
 SYSTEM_PROMPT = (
     "Você confere se um TEXTO é fiel aos FATOS. Responda com `reason` (uma frase) e `verdict`. "
     "`verdict` é `unfaithful` se QUALQUER parte do texto afirma algo que os fatos não sustentam: "
-    "número diferente, arredondado ou ligado ao campo errado; previsão ou projeção; comparação com "
+    "número diferente, arredondado ou ligado ao campo errado; número que NÃO aparece nos fatos, mesmo "
+    "que seja uma conta correta (soma, diferença, média, percentual); previsão ou projeção; comparação com "
     "outro dia ou período; causa, tendência ou recomendação que os fatos não contêm. "
     "É `faithful` somente se tudo o que o texto afirma está nos fatos. Em dúvida, `unfaithful`. "
     "O `verdict` tem que concordar com o `reason`. "
