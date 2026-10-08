@@ -23,6 +23,7 @@ uv sync
 | Simulated evals, 5 golden sets | `uv run python -m evals` |
 | Same, appending score to `evals/history.jsonl` | `uv run python -m evals --record` |
 | Calibrate the LLM judge (real Groq calls) | `uv run python -m evals.judge_calibration` |
+| Rebuild the story of one run from its request ID (`--full` adds prompt and results) | `uv run python -m trace_report <request_id> [--file traces.jsonl] [--full]` |
 | Typecheck (must stay at 0 errors, 0 warnings) | `uv run basedpyright` |
 
 CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simulated evals and the typecheck. It never calls an LLM: that keeps it free, deterministic and secret-free. Real calls run by hand before merging a prompt, model or SDK change.
@@ -41,7 +42,8 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | `validators.py` | numbers in the text must come from the facts, attached to the right field |
 | `answers.py` | on-demand questions with `STATUS: answered / insufficient_data` and refusal rules |
 | `tracing.py` | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL); `agent.py` and `narrate.py` emit spans (no-op without an active trace) |
-| `masking.py` | `MaskingSink`: allowlist of trace attributes, PII patterns scrubbed from free text, rest masked |
+| `masking.py` | `MaskingSink`: allowlist of trace attributes, PII patterns scrubbed from free text, rest masked; `production_sink(path)` is the way to build the JSONL sink (default `traces/traces.jsonl`, git-ignored) |
+| `trace_report.py` | reads the JSONL and prints the span tree, totals and cost for one `request_id`; last trace wins with a warning, a corrupt line aborts |
 | `judge.py` | LLM-as-judge for fidelity (different model family than the generator) |
 | `evals/` | golden sets (detection, fidelity, closing, refusal, trajectory), runner, judge calibration |
 | `NOTES.md` | per-step study notes in Portuguese: what was learned, what broke |

@@ -3,12 +3,14 @@ from datetime import date
 from pathlib import Path
 from typing import cast
 
-from pytest import mark
+from pytest import CaptureFixture, mark
 
 from groq_client import GroqClient
+from masking import production_sink
 from refill_job import run_refill_job
 from settings import get_settings
 from tools import connect_readonly
+from trace_report import main
 from tracing import JsonlSink, trace
 
 MODEL = "openai/gpt-oss-120b"
@@ -52,3 +54,25 @@ def test_real_job_trace_has_cost_model_and_request_id(tmp_path: Path) -> None:
     assert job["prompt_tokens"] == report.usage.prompt_tokens
     assert job["cost_complete"] is True
     assert float(str(job["cost"])) > 0
+
+
+def test_real_job_story_is_rebuilt_from_the_request_id(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
+    settings = get_settings()
+    client = GroqClient(settings.groq_api_key.get_secret_value())
+    path = tmp_path / "traces.jsonl"
+
+    with connect_readonly(settings.database_url.get_secret_value()) as conn:
+        with trace("real-refill", production_sink(path), request_id="real-3"):
+            report = run_refill_job(client, conn, AS_OF, model=MODEL)
+
+    _ = capsys.readouterr()
+    assert main(["real-3", "--file", str(path), "--full"]) == 0
+    story = capsys.readouterr().out
+    with capsys.disabled():
+        print(f"\n{story}")
+
+    assert story.startswith("request_id=real-3")
+    assert f"model={MODEL}" in story and f"prompt_version={report.prompt_version}" in story
+    assert f"{report.usage.prompt_tokens}→{report.usage.completion_tokens} tokens" in story
+    assert "(completo)" in story
+    assert all(i.rationale in story for i in report.items if i.rationale)
