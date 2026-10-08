@@ -67,7 +67,7 @@ GAP_EXAMPLES: tuple[LabeledExample, ...] = (
     _gap("faithful-date", _CLOSING, "Fechamento de 20/01/2026: R$ 10.950,00 em vendas.", "faithful"),
     _gap("faithful-top-product", _CLOSING, "O produto de maior faturamento do dia foi received-po.", "faithful"),
     _gap("faithful-date-part-as-date", _DAY_10, "Em 10/01/2026 o faturamento foi de R$ 10.950,00.", "faithful"),
-    _gap("faithful-refill-with-numbers", _REFILL, "Restam 3 unidades, abaixo do ponto de reposição de 40; sugestão de repor 250.", "faithful"),
+    _gap("faithful-refill-no-numbers", _REFILL, "Estoque abaixo do ponto de reposição; reposição sugerida.", "faithful"),
 )
 
 
