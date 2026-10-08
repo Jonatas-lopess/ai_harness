@@ -279,3 +279,4 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - `.github/workflows/ci.yml` (raiz do repo, o GitHub só lê de lá): `uv sync --locked`, `pytest -m "not integration"`, `python -m evals`, `basedpyright`. Sem Docker, sem Groq. `--locked` falha se `uv.lock` diverge do `pyproject.toml`.
 - Não verificado: o workflow nunca rodou no GitHub (sem push neste passo). Comandos conferidos localmente um a um.
 - Falta para fechar a fase 3: trajetória (tools certas, ordem, orçamento), score + custo por execução, LLM-as-judge calibrado (fecha as lacunas "projeção sem número").
+- Perguntas de revisão do autor: (1) `Protocol` evita acoplamento: pack não precisa importar base do harness só para tipar resultado; (2) `--locked` não é o que trava versões (o `uv.lock` trava): ele faz o CI falhar se lock e `pyproject.toml` divergem, em vez de resolver versões novas em silêncio; (3) "já visto".
