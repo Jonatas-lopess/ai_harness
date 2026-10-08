@@ -378,8 +378,8 @@ Para acompanhar as atualizações de IA sem quebrar seus produtos, todo upgrade 
 - [x] Fase 0: repositório reproduzível com `uv`, Docker Compose e pytest
 - [x] Fase 1: chamada ao modelo com saída validada, retries e custo registrado
 - [x] Fase 2: job de reposição do ERP com cálculo em código e texto do LLM
-- [ ] Fase 3: golden set do ERP rodando em CI, com validador de números
-- [ ] Fase 4: traces com custo e request ID em todas as execuções
+- [x] Fase 3: golden set do ERP rodando em CI, com validador de números
+- [x] Fase 4: traces com custo e request ID em todas as execuções
 - [ ] Fase 5: `ai-harness` extraído e versionado por tag
 - [ ] Fase 6: pack Legal funcionando sem alterar o harness
 - [ ] Fase 7: jobs agendados, aprovação e `ai_insights` integrados por API
