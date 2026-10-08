@@ -40,6 +40,7 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | `narrate.py` | generic "facts to validated text" loop shared by both jobs |
 | `validators.py` | numbers in the text must come from the facts, attached to the right field |
 | `answers.py` | on-demand questions with `STATUS: answered / insufficient_data` and refusal rules |
+| `tracing.py` | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL) |
 | `judge.py` | LLM-as-judge for fidelity (different model family than the generator) |
 | `evals/` | golden sets (detection, fidelity, closing, refusal, trajectory), runner, judge calibration |
 | `NOTES.md` | per-step study notes in Portuguese: what was learned, what broke |

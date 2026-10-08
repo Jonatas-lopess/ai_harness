@@ -18,7 +18,7 @@ Study project, built in sequential phases (details in `CLAUDE.md`; full guide in
 | 1. Model call | text in, validated Pydantic object out, cost logged, retry | done |
 | 2. ERP detection | reorder job: code computes quantity, LLM writes the rationale | done |
 | 3. Validators and evals | golden sets, CI that fails on a wrong number, calibrated LLM judge | done |
-| 4. Observability | every run traceable | next |
+| 4. Observability | every run traceable | in progress (step 1: span/trace/request ID) |
 | 5-8 | harness extraction, Legal pack, triggers, hardening | planned |
 
 Only the ERP pack exists so far, in `erp-assistant/`. The harness is not extracted yet (phase 5): its pieces still live next to the ERP code and are written to be moved. The Legal pack comes after, as the test that the harness is really domain-agnostic.

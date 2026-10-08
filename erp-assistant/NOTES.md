@@ -319,3 +319,17 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Regra: teste de unidade não pode depender de arquivo da máquina. Reproduzir o CI localmente = apagar `.env` e as variáveis do ambiente.
 - CI verde no GitHub depois da correção. **Fase 3 concluída**: golden set (80 casos, 5 suítes) + CI (pytest, evals, basedpyright) + trajetória + histórico de score + juiz calibrado (preliminar: 47 exemplos, rótulos `gap` só parcialmente revisados).
 - Dívidas conhecidas, adiadas de propósito: mais rótulos humanos para o juiz; custo em dinheiro do Qwen (sem preço em `prices.json`); ordem de tools dependentes (trajetória); `test_real_extract_many_async` instável (fase 1, real).
+
+# Fase 4: observabilidade
+
+Plano (passos): 1 span/trace/request ID; 2 instrumentar o loop do agente e o `narrate` (prompt, usage, custo, latência); 3 custo por job + `prompt_version` + `model`; 4 mascarar dado sensível antes de gravar; 5 comando que reconstrói a história de um `request_id`; 6 chamada real + notas. Decisão: tracer próprio mínimo com formato parecido com OpenTelemetry (trace_id, span_id, parent_id), sem Langfuse por ora; trocar depois é um sink novo, não reescrita.
+
+## Passo 1: span + trace + request ID
+- Previsão do autor, 1: span com erro registrado. Certa; o erro é a causa que o trace precisa mostrar (sem ele, "lento e sem resposta"). Circuit breaker fica fora do escopo. 2: "contextmanager com `with as`". Metade: isso é como abre e fecha, não como acha o pai sem parâmetro. A resposta é `contextvars.ContextVar` (≈ `AsyncLocalStorage` do Node).
+- `tracing.py`: `trace(name, sink, request_id=...)` abre a raiz e grava no `finally`; `span(name, **attrs)` abre filho do span ativo. `Span` (ids, início ISO, `duration_ms`, `status`, `error`, `attributes`), `Trace` (= `request_id` + lista de spans), `TraceSink` é `Protocol` (`MemorySink` nos testes, `JsonlSink` com uma linha por trace).
+- Decisões: trace gravado uma vez no fim (um crash do processo perde o trace em andamento: troca por simplicidade); `span()` sem trace ativo roda e não grava nada (código instrumentado não quebra sem tracer); `clock` injetável para teste de duração determinístico; `default=str` no JSON (Decimal/date não derrubam a gravação); erro registra `Tipo: mensagem` e é relançado, inclusive `CancelledError`.
+- `RequestContext` (tenant, usuário, papel) ainda não existe; `request_id` entra como parâmetro opcional.
+- Mutação: `ContextVar` trocado por variável global deixa `test_concurrent_traces_do_not_mix_parents` vermelho. Sem o `await asyncio.sleep(0)` no teste ele passaria mesmo com o global: sem `await` o `gather` roda um job inteiro e depois o outro, nada se intercala.
+- Não verificado: nenhuma chamada real (o passo não toca o LLM; entra no passo 2).
+- Riscos conhecidos: esquecer de abrir o `trace` faz o `span` sumir em silêncio; trace só no fim perde execução interrompida.
+- Perguntas de revisão do autor: (1) "que uma chamada await foi feita"; incompleto: o `sleep(0)` cede o loop e **intercala** os jobs, é isso que o teste precisa para provar o isolamento; (2) crash no meio não salva dado; certo para o risco de gravar no fim, faltou a vantagem (linha completa) e o risco do `span` silencioso fora de trace; (3) vazamento de informação; certo, tratado no passo 4 (mascarar antes de gravar).
