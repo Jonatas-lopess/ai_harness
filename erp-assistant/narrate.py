@@ -22,6 +22,7 @@ from extract import (
     parse_completion,
     with_feedback,
 )
+from pricing import usage_attributes
 from tracing import span
 from validators import mislabeled_numbers, ungrounded_in
 
@@ -77,8 +78,7 @@ def narrate(
                     )
                     usage = completion.usage
                     call_span.set(
-                        prompt_tokens=usage.prompt_tokens if usage else None,
-                        completion_tokens=usage.completion_tokens if usage else None,
+                        **usage_attributes(usage, model),
                         finish_reason=completion.finish_reason,
                         content=completion.content,
                     )

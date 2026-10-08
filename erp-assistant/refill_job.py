@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from extract import ExtractionError, LLMClient, Usage, add_usage
 from narrate import Explanation, narrate
+from pricing import costed_span
 from replenishment import DEFAULT_COVER_DAYS, DEFAULT_WINDOW_DAYS, low_stock
 
 PROMPT_VERSION = "refill-rationale-v1"
@@ -87,37 +88,38 @@ def run_refill_job(
     cover_days: int = DEFAULT_COVER_DAYS,
     max_attempts: int = 3,
 ) -> RefillReport:
-    flagged = low_stock(conn, as_of, window_days, cover_days)
-    # Prioridade decidida pelo código: maior quantidade sugerida primeiro.
-    flagged.sort(key=lambda p: (-p.suggested_qty, p.product_id))
+    with costed_span("refill_job", model=model, prompt_version=PROMPT_VERSION):
+        flagged = low_stock(conn, as_of, window_days, cover_days)
+        # Prioridade decidida pelo código: maior quantidade sugerida primeiro.
+        flagged.sort(key=lambda p: (-p.suggested_qty, p.product_id))
 
-    total = Usage(0, 0)
-    items: list[RefillSuggestion] = []
-    for position in flagged:
-        facts = RefillFacts(
-            product_id=position.product_id,
-            name=position.name,
-            on_hand=position.on_hand,
-            open_po_qty=position.open_po_qty,
-            reorder_point=position.reorder_point,
-            suggested_qty=position.suggested_qty,
-        )
-        try:
-            explanation = explain(client, facts, model=model, max_attempts=max_attempts)
-        except ExtractionError as exc:
-            exc.usage = add_usage(total, exc.usage)
-            raise
-        total = add_usage(total, explanation.usage)
-        items.append(
-            RefillSuggestion(
-                product_id=facts.product_id,
-                name=facts.name,
-                on_hand=facts.on_hand,
-                open_po_qty=facts.open_po_qty,
-                reorder_point=facts.reorder_point,
-                suggested_qty=facts.suggested_qty,
-                rationale=explanation.rationale,
-                rationale_error=explanation.error,
+        total = Usage(0, 0)
+        items: list[RefillSuggestion] = []
+        for position in flagged:
+            facts = RefillFacts(
+                product_id=position.product_id,
+                name=position.name,
+                on_hand=position.on_hand,
+                open_po_qty=position.open_po_qty,
+                reorder_point=position.reorder_point,
+                suggested_qty=position.suggested_qty,
             )
-        )
-    return RefillReport(tuple(items), total, PROMPT_VERSION, model)
+            try:
+                explanation = explain(client, facts, model=model, max_attempts=max_attempts)
+            except ExtractionError as exc:
+                exc.usage = add_usage(total, exc.usage)
+                raise
+            total = add_usage(total, explanation.usage)
+            items.append(
+                RefillSuggestion(
+                    product_id=facts.product_id,
+                    name=facts.name,
+                    on_hand=facts.on_hand,
+                    open_po_qty=facts.open_po_qty,
+                    reorder_point=facts.reorder_point,
+                    suggested_qty=facts.suggested_qty,
+                    rationale=explanation.rationale,
+                    rationale_error=explanation.error,
+                )
+            )
+        return RefillReport(tuple(items), total, PROMPT_VERSION, model)

@@ -32,7 +32,7 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | File | Role |
 | --- | --- |
 | `extract.py`, `groq_client.py` | `LLMClient` protocol, retry, usage; `groq_client.py` is the only file that knows the Groq SDK |
-| `pricing.py`, `prices.json` | versioned prices, cost per run |
+| `pricing.py`, `prices.json` | versioned prices, cost per call and per job (`costed_span`) recorded in the trace |
 | `tools.py`, `erp_tools.py` | read-only tool registry and the ERP tools |
 | `agent.py` | agent loop with step budget |
 | `replenishment.py`, `refill_job.py` | reorder detection and quantity (SQL and Python), rationale via LLM |

@@ -14,6 +14,7 @@ from extract import (
     Usage,
     add_usage,
 )
+from pricing import usage_attributes
 from tools import ToolContext, ToolError, ToolRegistry, ToolSchema
 from tracing import span
 
@@ -149,8 +150,7 @@ def run_agent(
                 message = response.message
                 usage = response.usage
                 call_span.set(
-                    prompt_tokens=usage.prompt_tokens if usage else None,
-                    completion_tokens=usage.completion_tokens if usage else None,
+                    **usage_attributes(usage, model),
                     finish_reason=response.finish_reason,
                     content=message.content,
                     tool_calls=[{"id": c.id, "name": c.name, "arguments": c.arguments} for c in message.tool_calls],

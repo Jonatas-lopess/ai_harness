@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pytest import raises
 
-from tracing import JsonlSink, MemorySink, Trace, span, trace
+from tracing import JsonlSink, MemorySink, Trace, current_trace, descendants, span, trace
 
 
 def only(sink: MemorySink) -> Trace:
@@ -127,3 +127,26 @@ def test_jsonl_sink_writes_one_trace_per_line(tmp_path: Path) -> None:
     assert first["trace_id"] == "r1"
     assert [s["name"] for s in first["spans"]] == ["job", "llm"]  # pyright: ignore[reportAny]
     assert first["spans"][0]["attributes"] == {"cost": "0.0003"}  # Decimal virou texto, não derrubou
+
+
+def test_current_trace_is_the_active_one_and_none_outside() -> None:
+    assert current_trace() is None
+    sink = MemorySink()
+    with trace("job", sink, request_id="r"):
+        active = current_trace()
+        assert active is not None and active.trace_id == "r"
+    assert current_trace() is None
+
+
+def test_descendants_returns_the_whole_subtree_without_the_root_of_it() -> None:
+    sink = MemorySink()
+    with trace("root", sink):
+        with span("a") as a:
+            with span("a1"):
+                with span("a1x"):
+                    pass
+        with span("b"):
+            pass
+    t = only(sink)
+    assert sorted(s.name for s in descendants(t, a.span_id)) == ["a1", "a1x"]
+    assert len(descendants(t, t.spans[0].span_id)) == 4

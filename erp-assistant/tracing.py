@@ -76,6 +76,27 @@ class _Active:
 _active: ContextVar[_Active | None] = ContextVar("tracing_active", default=None)
 
 
+def current_trace() -> Trace | None:
+    """O trace em andamento (None fora de um `trace`). Serve a quem precisa somar os spans já fechados."""
+    active = _active.get()
+    return active.trace if active else None
+
+
+def descendants(trace: Trace, span_id: str) -> list[Span]:
+    """Spans abaixo de `span_id` (filhos, netos...), sem o próprio. Isola um job dentro de um trace maior."""
+    children: dict[str, list[Span]] = {}
+    for s in trace.spans:
+        if s.parent_id is not None:
+            children.setdefault(s.parent_id, []).append(s)
+    found: list[Span] = []
+    pending = [span_id]
+    while pending:
+        for child in children.get(pending.pop(), []):
+            found.append(child)
+            pending.append(child.span_id)
+    return found
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -123,13 +144,11 @@ def trace(
 
 
 @contextmanager
-def span(
-    name: str, /, *, clock: Callable[[], float] = time.perf_counter, **attributes: object
-) -> Generator[Span]:
+def span(name: str, /, **attributes: object) -> Generator[Span]:
     """Abre um span filho do span ativo. `name` é só posicional: `name=` vira atributo (ex.: nome da tool). Sem trace ativo, o código roda igual e nada é gravado."""
     current = _active.get()
     if current is None:
         yield Span("-", "-", None, name, _now(), attributes=dict(attributes))
         return
-    with _open(current.trace, name, current.span.span_id, attributes, clock) as s:
+    with _open(current.trace, name, current.span.span_id, attributes, time.perf_counter) as s:
         yield s

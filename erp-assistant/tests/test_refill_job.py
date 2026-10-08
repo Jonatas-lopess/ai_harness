@@ -173,3 +173,15 @@ def test_trace_records_a_rejected_narration_outcome():
     [narrate_span] = [s for s in sink.traces[0].spans if s.name == "narrate"]
     assert narrate_span.attributes["outcome"] == "rejected"
     assert narrate_span.attributes["attempts"] == 3
+
+
+def test_unpriced_model_leaves_the_narrate_spans_without_cost():
+    client = ScriptedClient(ok("Repor 250."))
+    sink = MemorySink()
+
+    with trace("job", sink):
+        _ = explain(client, FACTS, model="m")  # "m" não está em prices.json
+
+    [call] = [s for s in sink.traces[0].spans if s.name == "llm_call"]
+    assert call.attributes["cost"] is None
+    assert call.attributes["prompt_tokens"] == 10

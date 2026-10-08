@@ -10,6 +10,7 @@ from extract import Completion, Usage
 from settings import get_settings
 from tests.test_refill_job import ScriptedClient
 from tools import connect_readonly
+from tracing import MemorySink, trace
 
 pytestmark = mark.integration
 
@@ -60,3 +61,18 @@ def test_job_writes_a_validated_summary(conn: psycopg.Connection) -> None:
     assert report.summary == text
     assert report.prompt_version == PROMPT_VERSION
     assert report.usage == Usage(10, 5)
+
+
+def test_closing_job_span_records_cost_even_for_an_unpriced_model(conn: psycopg.Connection) -> None:
+    text = "Faturamento de R$ 10.950,00 com 465 unidades; destaque para received-po."
+    client = ScriptedClient(Completion(f'{{"rationale": "{text}"}}', "stop", usage=Usage(10, 5)))
+    sink = MemorySink()
+
+    with trace("run", sink):
+        _ = run_closing_job(client, conn, date(2026, 1, 20), model="m")
+
+    [job] = [s for s in sink.traces[0].spans if s.name == "closing_job"]
+    assert job.attributes["prompt_version"] == PROMPT_VERSION
+    assert job.attributes["prompt_tokens"] == 10
+    assert job.attributes["cost_complete"] is False  # "m" não tem preço: o total é piso
+    assert job.attributes["calls_without_cost"] == 1

@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 from typing import cast
 
 import psycopg
@@ -315,3 +316,14 @@ def test_agent_runs_the_same_without_an_active_trace():
     with span("outside"):  # sem trace: nada é gravado e nada quebra
         result = _run(ScriptedChat(_answer("pronto")))
     assert result.text == "pronto"
+
+
+def test_llm_call_spans_carry_cost_from_the_price_table():
+    client = ScriptedChat(_call(ToolCall("c1", "ping", "{}")), _answer("ok"))
+    sink = MemorySink()
+    with trace("job", sink):
+        _ = run_agent(client, _registry(), _ctx(), model="openai/gpt-oss-120b", system="s", user="u", max_steps=5)
+
+    llm = [s for s in sink.traces[0].spans if s.name == "llm_call"]
+    assert [s.attributes["cost"] for s in llm] == [Decimal("0.0000045")] * 2  # 10*0.15 + 5*0.60, por milhão
+    assert llm[0].attributes["prices_as_of"] == "2026-10-04"
