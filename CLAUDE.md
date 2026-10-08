@@ -6,13 +6,23 @@
 
 | Need | Section |
 | --- | --- |
-| Non-negotiable design rules | "Princípios de design" |
+| Why and how each design principle applies | "Princípios de design" |
 | Harness vs pack split, `DomainPack`, `run_job` | "Arquitetura" |
 | Phases, "ready" criteria, study questions | "Roadmap por fases" |
 | ERP and Legal tools, schemas, risk comparison | "Packs ERP e Legal" |
 | Golden set groups, check priority, `NumbersGrounded` | "Avaliações (evals)" |
 | Threats, `ai_insights`, idempotency, LGPD | "Segurança, privacidade e integração" |
 | Model/SDK upgrade ritual | "Upgrade, glossário e checklist" |
+
+## Design principles (non-negotiable; detail in the guide's "Princípios de design")
+
+1. Deterministic core, LLM at the edges: SQL/business rules detect and compute; the LLM prioritizes, explains, summarizes.
+2. Output validation: every number/date in generated text traces to a tool result.
+3. Read-only tools: the assistant only reads; actions become drafts a human approves.
+4. Permissions on every call: `RequestContext` (tenant, user, role) filters every tool.
+5. Audit everything: prompt, tools called, results, cost, model version, request ID.
+6. Budgets: step/token/cost limits per run, bounded retries.
+7. Low coupling: business logic in plain Python; an orchestration framework only wires pieces.
 
 ## Rules that outlive the guide
 
