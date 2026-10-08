@@ -271,3 +271,11 @@ Requer `uv` (Docker nas próximas etapas). Depois: `uv sync` e `uv run pytest`.
 - Lacuna documentada (`test_known_gap_forecast_prose_after_a_real_tool_call_is_accepted`): com tool bem-sucedida e texto "Foram 300 e deve crescer no mês que vem" passa. Só juiz de fidelidade (passo 5).
 - Suíte completa: `test_real_extract_many_async` (fase 1, Groq real) falhou uma vez em 3 rodadas completas e passou nas outras; instável, sem relação com o passo.
 - Perguntas 1 e 2 marcadas "já visto" pelo autor.
+
+## Passo 5: runner único de evals + CI
+- Previsão do autor certa: sem o validador de rótulo, **os dois** falham (testes unitários e golden). Medido: `swapped = []` em `narrate.py` -> fidelity 11/17, closing 15/17, `python -m evals` sai 1, pytest falha em `test_number_on_the_wrong_field_is_retried_with_feedback`. Dois níveis de rede: teste unitário protege a regra; golden protege o comportamento do conjunto de casos.
+- Pergunta 2 (CI sem `integration`): cota, mas também não determinismo (a suíte real já falhou 1 em 3 sozinha) e secret `GROQ_API_KEY` no CI. CI vermelho por flake ensina a ignorar CI. Real roda à mão antes de mesclar.
+- `evals/__main__.py`: `python -m evals` roda as 4 suítes (detection, fidelity, closing, refusal), imprime `nome: ok/total`, `FAIL suite/caso` e total; sai 1 se qualquer caso falha. `__main__.py` é o arquivo que o Python executa em `python -m pacote` (≈ `bin` de um package.json). `Scored` é um `Protocol` (tipagem estrutural ≈ interface TS): qualquer resultado com `.case.name` e `.passed` serve, sem herança.
+- `.github/workflows/ci.yml` (raiz do repo, o GitHub só lê de lá): `uv sync --locked`, `pytest -m "not integration"`, `python -m evals`, `basedpyright`. Sem Docker, sem Groq. `--locked` falha se `uv.lock` diverge do `pyproject.toml`.
+- Não verificado: o workflow nunca rodou no GitHub (sem push neste passo). Comandos conferidos localmente um a um.
+- Falta para fechar a fase 3: trajetória (tools certas, ordem, orçamento), score + custo por execução, LLM-as-judge calibrado (fecha as lacunas "projeção sem número").

@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# Simulated model only. Real Groq calls and Postgres stay out of CI:
+# quota, nondeterminism and secrets (see erp-assistant/NOTES.md, phase 3 step 5).
+jobs:
+  erp-assistant:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: erp-assistant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked
+      - run: uv run pytest -m "not integration"
+      - run: uv run python -m evals
+      - run: uv run basedpyright
