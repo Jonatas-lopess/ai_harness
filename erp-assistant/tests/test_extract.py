@@ -1,9 +1,12 @@
+import logging
+from decimal import Decimal
 from typing import Any
 
-from pytest import raises
+from pytest import LogCaptureFixture, raises
 
+from erp_prices import load_erp_prices
+from extract import ExtractionResult, StockMessage, extract_text, extract_with_retry, log_run_cost
 from harness.llm import Completion, InvalidOutputError, ProviderUnavailableError, TruncatedOutputError, Usage
-from extract import StockMessage, extract_text, extract_with_retry
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 
@@ -18,6 +21,10 @@ class FakeClient:
     def complete(self, **kwargs: Any) -> Completion:  # pyright: ignore[reportExplicitAny, reportAny]
         self.calls.append(kwargs)
         return self.completion
+
+
+def make_result(prompt: int, completion: int, attempts: int = 1) -> ExtractionResult:
+    return ExtractionResult(StockMessage(product_name="P", stock_level=1), Usage(prompt, completion), attempts)
 
 
 def run(completion: Completion) -> StockMessage:
@@ -122,3 +129,24 @@ def test_retry_does_not_retry_provider_unavailable_and_keeps_usage() -> None:
 
     assert len(client.calls) == 2
     assert info.value.usage == Usage(10, 5)
+
+
+def test_log_run_cost_known_model(caplog: LogCaptureFixture) -> None:
+    table = load_erp_prices()
+
+    with caplog.at_level(logging.INFO, logger="extract"):
+        cost = log_run_cost(make_result(1000, 500, attempts=2), "openai/gpt-oss-120b", table)
+
+    assert cost == Decimal("0.00045")
+    assert "attempts=2" in caplog.text
+    assert "cost=0.00045 USD" in caplog.text
+
+
+def test_log_run_cost_unknown_model_warns(caplog: LogCaptureFixture) -> None:
+    table = load_erp_prices()
+
+    with caplog.at_level(logging.INFO, logger="extract"):
+        cost = log_run_cost(make_result(10, 10), "modelo-sem-preco", table)
+
+    assert cost is None
+    assert "no price for model=modelo-sem-preco" in caplog.text

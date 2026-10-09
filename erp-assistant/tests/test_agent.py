@@ -18,6 +18,8 @@ from agent import (
     run_agent,
 )
 from harness.llm import InvalidOutputError, ProviderUnavailableError, TruncatedOutputError, Usage
+from erp_prices import load_erp_prices
+from harness.pricing import costed_span
 from harness.tools import ToolError, ToolInput, ToolRegistry, ToolSchema, make_tool
 from erp_context import ErpContext
 from harness.tracing import MemorySink, span, trace
@@ -333,8 +335,20 @@ def test_llm_call_spans_carry_cost_from_the_price_table():
     client = ScriptedChat(_call(ToolCall("c1", "ping", "{}")), _answer("ok"))
     sink = MemorySink()
     with trace("job", sink):
-        _ = run_agent(client, _registry(), _ctx(), model="openai/gpt-oss-120b", system="s", user="u", max_steps=5)
+        with costed_span("job", prices=load_erp_prices()):
+            _ = run_agent(client, _registry(), _ctx(), model="openai/gpt-oss-120b", system="s", user="u", max_steps=5)
 
     llm = [s for s in sink.traces[0].spans if s.name == "llm_call"]
     assert [s.attributes["cost"] for s in llm] == [Decimal("0.0000045")] * 2  # 10*0.15 + 5*0.60, por milhão
     assert llm[0].attributes["prices_as_of"] == "2026-10-04"
+
+
+def test_agent_outside_a_priced_job_leaves_cost_unknown_instead_of_guessing():
+    client = ScriptedChat(_call(ToolCall("c1", "ping", "{}")), _answer("ok"))
+    sink = MemorySink()
+    with trace("job", sink):
+        _ = run_agent(client, _registry(), _ctx(), model="openai/gpt-oss-120b", system="s", user="u", max_steps=5)
+
+    llm = [s for s in sink.traces[0].spans if s.name == "llm_call"]
+    assert [s.attributes["cost"] for s in llm] == [None, None]
+    assert llm[0].attributes["prices_as_of"] is None

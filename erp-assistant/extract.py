@@ -4,6 +4,8 @@ Nenhum job de produção usa estas funções (eles usam `narrate`); o retry daqu
 """
 
 import asyncio
+import logging
+from decimal import Decimal
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
@@ -20,6 +22,9 @@ from harness.llm import (
     parse_completion,
     with_feedback,
 )
+from harness.pricing import PriceTable, compute_cost
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "Extraia produto e nível de estoque da mensagem do usuário. "
@@ -192,3 +197,21 @@ async def extract_many(
 
 def _parse(completion: Completion) -> StockMessage:
     return parse_completion(completion, StockMessage)
+
+
+def log_run_cost(result: ExtractionResult, model: str, table: PriceTable) -> Decimal | None:
+    """Registra uma linha por execução e devolve o custo (`None` se o modelo não tem preço)."""
+    cost = compute_cost(result.usage, table.models.get(model))
+    if cost is None:
+        logger.warning("no price for model=%s: cost unknown (total is a lower bound)", model)
+    logger.info(
+        "extraction model=%s attempts=%d prompt_tokens=%d completion_tokens=%d cost=%s %s prices_as_of=%s",
+        model,
+        result.attempts,
+        result.usage.prompt_tokens,
+        result.usage.completion_tokens,
+        cost,
+        table.currency,
+        table.effective_date,
+    )
+    return cost

@@ -15,7 +15,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from masking import DEFAULT_TRACE_PATH
-from pricing import job_cost
+from harness.pricing import job_cost
 from harness.tracing import Span, Trace
 
 # Atributos que aparecem na linha do span; o resto (prompt, resultado, argumentos) só com `--full`.

@@ -1,20 +1,23 @@
-import logging
 from decimal import Decimal
 from pathlib import Path
 
 from pydantic import ValidationError
-from pytest import LogCaptureFixture, raises
+from pytest import raises
 
 from harness.llm import Usage
-from extract import ExtractionResult, StockMessage
-from pricing import JobCost, Price, PriceTable, compute_cost, costed_span, job_cost, load_prices, log_run_cost, usage_attributes
+from harness.pricing import (
+    JobCost,
+    Price,
+    PriceTable,
+    compute_cost,
+    costed_span,
+    job_cost,
+    load_prices,
+    usage_attributes,
+)
 from harness.tracing import MemorySink, Span, span, trace
 
 PRICE = Price(input_per_mtok=Decimal("0.15"), output_per_mtok=Decimal("0.60"))
-
-
-def make_result(prompt: int, completion: int, attempts: int = 1) -> ExtractionResult:
-    return ExtractionResult(StockMessage(product_name="P", stock_level=1), Usage(prompt, completion), attempts)
 
 
 def test_cost_is_exact() -> None:
@@ -31,13 +34,6 @@ def test_cost_none_without_price() -> None:
     assert compute_cost(Usage(10, 10), None) is None
 
 
-def test_load_default_prices_has_groq_model() -> None:
-    table = load_prices()
-
-    assert table.currency == "USD"
-    assert Decimal("0.15") == table.models["openai/gpt-oss-120b"].input_per_mtok
-
-
 def test_load_prices_rejects_unknown_field(tmp_path: Path) -> None:
     bad = tmp_path / "prices.json"
     _ = bad.write_text(
@@ -46,27 +42,6 @@ def test_load_prices_rejects_unknown_field(tmp_path: Path) -> None:
 
     with raises(ValidationError):
         _ = load_prices(bad)
-
-
-def test_log_run_cost_known_model(caplog: LogCaptureFixture) -> None:
-    table = load_prices()
-
-    with caplog.at_level(logging.INFO, logger="pricing"):
-        cost = log_run_cost(make_result(1000, 500, attempts=2), "openai/gpt-oss-120b", table)
-
-    assert cost == Decimal("0.00045")
-    assert "attempts=2" in caplog.text
-    assert "cost=0.00045 USD" in caplog.text
-
-
-def test_log_run_cost_unknown_model_warns(caplog: LogCaptureFixture) -> None:
-    table = load_prices()
-
-    with caplog.at_level(logging.INFO, logger="pricing"):
-        cost = log_run_cost(make_result(10, 10), "modelo-sem-preco", table)
-
-    assert cost is None
-    assert "no price for model=modelo-sem-preco" in caplog.text
 
 
 TABLE = PriceTable(
@@ -159,3 +134,65 @@ def test_costed_span_without_a_trace_runs_and_records_nothing() -> None:
     with costed_span("job") as job:
         llm_span("known", Usage(1000, 500))
     assert job.attributes["llm_calls"] == 0
+
+
+# --- a tabela da execução ---------------------------------------------------------------------------------------
+
+
+def test_usage_attributes_without_any_table_has_no_cost_and_says_so() -> None:
+    attrs = usage_attributes(Usage(10, 5), "known")
+
+    assert attrs["cost"] is None and attrs["currency"] is None and attrs["prices_as_of"] is None
+    assert attrs["prompt_tokens"] == 10
+
+
+def test_job_prices_apply_to_every_call_inside_it() -> None:
+    sink = MemorySink()
+    with trace("t", sink):
+        with costed_span("job", prices=TABLE) as job:
+            with span("llm_call", model="known") as call:
+                call.set(**usage_attributes(Usage(1000, 500), "known"))
+
+    assert job.attributes["cost"] == Decimal("0.00045")
+    assert job.attributes["cost_complete"] is True
+    assert sink.traces[0].spans[2].attributes["prices_as_of"] == "2026-01-01"
+
+
+def test_job_without_a_table_is_flagged_incomplete_not_free() -> None:
+    sink = MemorySink()
+    with trace("t", sink):
+        with costed_span("job") as job:
+            with span("llm_call", model="known") as call:
+                call.set(**usage_attributes(Usage(1000, 500), "known"))
+
+    assert job.attributes["cost"] == Decimal(0)
+    assert job.attributes["cost_complete"] is False
+    assert job.attributes["calls_without_cost"] == 1
+
+
+def test_the_table_does_not_leak_out_of_the_job() -> None:
+    with costed_span("job", prices=TABLE):
+        pass
+
+    assert usage_attributes(Usage(1, 1), "known")["cost"] is None
+
+
+def test_the_table_is_restored_even_when_the_job_fails() -> None:
+    with raises(RuntimeError, match="boom"):
+        with costed_span("job", prices=TABLE):
+            raise RuntimeError("boom")
+
+    assert usage_attributes(Usage(1, 1), "known")["cost"] is None
+
+
+def test_each_job_uses_its_own_table_and_a_nested_job_inherits() -> None:
+    newer = PriceTable(
+        source="test", effective_date="2026-06-01", currency="USD",
+        models={"known": Price(input_per_mtok=Decimal("1"), output_per_mtok=Decimal("1"))},
+    )
+    with costed_span("outer", prices=TABLE):
+        with costed_span("inner"):
+            assert usage_attributes(Usage(1000, 0), "known")["prices_as_of"] == "2026-01-01"
+        with costed_span("override", prices=newer):
+            assert usage_attributes(Usage(1000, 0), "known")["prices_as_of"] == "2026-06-01"
+        assert usage_attributes(Usage(1000, 0), "known")["prices_as_of"] == "2026-01-01"

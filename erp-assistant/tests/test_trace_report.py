@@ -5,7 +5,7 @@ from typing import Literal
 from pytest import CaptureFixture, raises
 
 from masking import production_sink
-from pricing import costed_span
+from harness.pricing import costed_span
 from trace_report import CorruptTraceLine, find_traces, main, render
 from harness.tracing import JsonlSink, Span, Trace, span, trace
 

@@ -8,7 +8,8 @@ from pydantic import BaseModel
 
 from harness.llm import ExtractionError, LLMClient, Usage, add_usage
 from narrate import Explanation, narrate
-from pricing import costed_span
+from erp_prices import load_erp_prices
+from harness.pricing import costed_span
 from replenishment import DEFAULT_COVER_DAYS, DEFAULT_WINDOW_DAYS, low_stock
 
 PROMPT_VERSION = "refill-rationale-v1"
@@ -88,7 +89,7 @@ def run_refill_job(
     cover_days: int = DEFAULT_COVER_DAYS,
     max_attempts: int = 3,
 ) -> RefillReport:
-    with costed_span("refill_job", model=model, prompt_version=PROMPT_VERSION):
+    with costed_span("refill_job", prices=load_erp_prices(), model=model, prompt_version=PROMPT_VERSION):
         flagged = low_stock(conn, as_of, window_days, cover_days)
         # Prioridade decidida pelo código: maior quantidade sugerida primeiro.
         flagged.sort(key=lambda p: (-p.suggested_qty, p.product_id))

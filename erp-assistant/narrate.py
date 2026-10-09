@@ -9,11 +9,21 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import ClassVar
 
+from harness.llm import (
+    ExtractionError,
+    InvalidOutputError,
+    LLMClient,
+    RefusedError,
+    TruncatedOutputError,
+    Usage,
+    add_usage,
+    parse_completion,
+    with_feedback,
+)
+from harness.tracing import span
 from pydantic import BaseModel, ConfigDict
 
-from harness.llm import ExtractionError, InvalidOutputError, LLMClient, RefusedError, TruncatedOutputError, Usage, add_usage, parse_completion, with_feedback
-from pricing import usage_attributes
-from harness.tracing import span
+from harness.pricing import usage_attributes
 from validators import mislabeled_numbers, ungrounded_in
 
 MAX_COMPLETION_TOKENS = 256

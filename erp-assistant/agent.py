@@ -8,7 +8,7 @@ from typing import Protocol, cast
 from pydantic import BaseModel
 
 from harness.llm import ExtractionError, InvalidOutputError, TruncatedOutputError, Usage, add_usage
-from pricing import usage_attributes
+from harness.pricing import usage_attributes
 from harness.tools import ToolError, ToolRegistry, ToolSchema
 from harness.tracing import span
 

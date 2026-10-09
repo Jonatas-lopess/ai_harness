@@ -1,23 +1,23 @@
-import logging
+"""Custo por chamada e por job: mecanismo genérico. A tabela de preços é do pack e chega pela borda.
+
+`costed_span(..., prices=tabela)` define a tabela da execução (uma `ContextVar`, como o trace atual).
+Sem tabela, o custo fica `None` e o job sai com `cost_complete=False`: visível, nunca um número inventado.
+"""
+
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from decimal import Decimal
-from functools import lru_cache
 from pathlib import Path
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
 from harness.llm import Usage
-from extract import ExtractionResult
 from harness.tracing import Span, current_trace, descendants, span
 
-logger = logging.getLogger(__name__)
-
-DEFAULT_PRICES_PATH = Path(__file__).parent / "prices.json"
 TOKENS_PER_MTOK = Decimal(1_000_000)
-
 
 class Price(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True, extra="forbid")
@@ -37,7 +37,10 @@ class PriceTable(BaseModel):
     models: dict[str, Price]
 
 
-def load_prices(path: Path = DEFAULT_PRICES_PATH) -> PriceTable:
+_prices: ContextVar[PriceTable | None] = ContextVar("harness_prices", default=None)
+
+
+def load_prices(path: Path) -> PriceTable:
     return PriceTable.model_validate_json(path.read_text(encoding="utf-8"))
 
 
@@ -51,40 +54,17 @@ def compute_cost(usage: Usage, price: Price | None) -> Decimal | None:
     ) / TOKENS_PER_MTOK
 
 
-def log_run_cost(result: ExtractionResult, model: str, table: PriceTable) -> Decimal | None:
-    """Registra uma linha por execução e devolve o custo (`None` se o modelo não tem preço)."""
-    cost = compute_cost(result.usage, table.models.get(model))
-    if cost is None:
-        logger.warning("no price for model=%s: cost unknown (total is a lower bound)", model)
-    logger.info(
-        "extraction model=%s attempts=%d prompt_tokens=%d completion_tokens=%d cost=%s %s prices_as_of=%s",
-        model,
-        result.attempts,
-        result.usage.prompt_tokens,
-        result.usage.completion_tokens,
-        cost,
-        table.currency,
-        table.effective_date,
-    )
-    return cost
-
-
-@lru_cache(maxsize=1)
-def default_prices() -> PriceTable:
-    return load_prices()
-
-
 def usage_attributes(usage: Usage | None, model: str, table: PriceTable | None = None) -> dict[str, object]:
     """Tokens e custo de UMA chamada, para gravar no span na hora. O preço vigente fica congelado no trace:
     recalcular na leitura reescreveria o custo histórico com o preço novo."""
-    table = table or default_prices()
-    cost = compute_cost(usage, table.models.get(model)) if usage is not None else None
+    table = table or _prices.get()
+    cost = compute_cost(usage, table.models.get(model)) if usage is not None and table is not None else None
     return {
         "prompt_tokens": usage.prompt_tokens if usage is not None else None,
         "completion_tokens": usage.completion_tokens if usage is not None else None,
         "cost": cost,
-        "currency": table.currency,
-        "prices_as_of": table.effective_date,
+        "currency": table.currency if table is not None else None,
+        "prices_as_of": table.effective_date if table is not None else None,
     }
 
 
@@ -118,12 +98,20 @@ def _tokens(s: Span, key: str) -> int:
 
 
 @contextmanager
-def costed_span(name: str, /, **attributes: object) -> Generator[Span]:
-    """Span de job: ao sair, mesmo com exceção, grava o custo dos `llm_call` abaixo dele. Falha também gasta."""
+def costed_span(
+    name: str, /, *, prices: PriceTable | None = None, **attributes: object
+) -> Generator[Span]:
+    """Span de job: ao sair, mesmo com exceção, grava o custo dos `llm_call` abaixo dele. Falha também gasta.
+
+    `prices` vale para tudo dentro do job; sem ele, herda a tabela do job pai (se houver).
+    """
+    token = _prices.set(prices) if prices is not None else None
     with span(name, **attributes) as job:
         try:
             yield job
         finally:
+            if token is not None:
+                _prices.reset(token)
             trace = current_trace()
             summary = job_cost(descendants(trace, job.span_id) if trace else [])
             job.set(

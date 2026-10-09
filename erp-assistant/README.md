@@ -36,7 +36,8 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | `extract.py` | phase 1 exercise (`StockMessage` extraction with retry); no production job uses it |
 | `harness.llm` (in `ai-harness/`) | `LLMClient` protocol, `Completion`, `Usage`, errors, `parse_completion`, `with_feedback` |
 | `groq_client.py` | the only file that knows the Groq SDK |
-| `pricing.py`, `prices.json` | versioned prices, cost per call and per job (`costed_span`) recorded in the trace |
+| `erp_prices.py`, `prices.json` | the ERP's versioned prices; `load_erp_prices()` reads the file on every job run (no global cache) |
+| `harness.pricing` (in `ai-harness/`) | cost per call and per job (`costed_span(prices=...)`) recorded in the trace; the price table comes from the pack |
 | `erp_context.py` | `ErpContext` (DB connection + `as_of`) and `connect_readonly`: what the harness hands to every ERP tool |
 | `erp_tools.py` | the ERP tools; the generic registry (`harness.tools`) lives in `ai-harness/` |
 | `agent.py` | agent loop with step budget |

@@ -8,7 +8,8 @@ import psycopg
 from closing import ClosingFacts, closing_facts
 from harness.llm import LLMClient, Usage
 from narrate import Explanation, narrate
-from pricing import costed_span
+from erp_prices import load_erp_prices
+from harness.pricing import costed_span
 
 PROMPT_VERSION = "closing-summary-v1"
 
@@ -54,7 +55,7 @@ def narrate_closing(
 def run_closing_job(
     client: LLMClient, conn: psycopg.Connection, day: date, *, model: str, max_attempts: int = 3
 ) -> ClosingReport:
-    with costed_span("closing_job", model=model, prompt_version=PROMPT_VERSION):
+    with costed_span("closing_job", prices=load_erp_prices(), model=model, prompt_version=PROMPT_VERSION):
         facts = closing_facts(conn, day)
         if facts is None:
             return ClosingReport(None, None, None, Usage(0, 0), PROMPT_VERSION, model)

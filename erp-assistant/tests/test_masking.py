@@ -133,7 +133,7 @@ def test_every_attribute_the_code_emits_is_classified() -> None:
     # Allowlist falha fechado: atributo novo some do trace até alguém classificar. Este teste torna esse esquecimento
     # barulhento (vermelho) em vez de silencioso (trace sem o campo).
     from agent import ToolCall, run_agent
-    from pricing import costed_span
+    from harness.pricing import costed_span
     from refill_job import explain
     from tests.test_agent import ScriptedChat, _answer, _call, _ctx, _registry  # pyright: ignore[reportPrivateUsage]
     from tests.test_refill_job import FACTS, ScriptedClient, ok

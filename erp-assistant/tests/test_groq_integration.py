@@ -3,9 +3,16 @@ import asyncio
 from pytest import mark, raises
 
 from harness.llm import ExtractionError, InvalidOutputError
-from extract import ExtractionResult, StockMessage, extract_many, extract_text, extract_with_retry
+from extract import (
+    ExtractionResult,
+    StockMessage,
+    extract_many,
+    extract_text,
+    extract_with_retry,
+    log_run_cost,
+)
 from groq_client import AsyncGroqClient, GroqClient
-from pricing import load_prices, log_run_cost
+from erp_prices import load_erp_prices
 from settings import get_settings
 
 MODEL = "openai/gpt-oss-120b"
@@ -73,7 +80,7 @@ def test_real_retry_exhausts_attempts_on_forced_failure() -> None:
 @mark.integration
 def test_real_run_cost_is_positive_and_matches_usage() -> None:
     client = make_client()
-    table = load_prices()
+    table = load_erp_prices()
 
     result = extract_with_retry(client, "Temos 40 parafusos M8 no estoque.", model=MODEL)
     cost = log_run_cost(result, MODEL, table)
