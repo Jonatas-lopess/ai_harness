@@ -20,7 +20,7 @@ from harness.llm import LLMClient
 from harness.narrate import Explanation, narrate
 from harness.pricing import Price, PriceTable, costed_span
 from harness.tools import Tool, ToolError, ToolInput, ToolRegistry, make_tool
-from harness.validators import NumberToken
+from harness.validators import Token
 
 MODEL = "toy-model"
 
@@ -74,9 +74,9 @@ def toy_registry() -> ToolRegistry[HelpdeskContext]:
 
 
 class ToyNumbers:
-    def find(self, text: str) -> Sequence[NumberToken]:
+    def find(self, text: str) -> Sequence[Token]:
         return [
-            NumberToken(m.group(), m.start(), m.end(), frozenset({Decimal(m.group())}))
+            Token(m.group(), m.start(), m.end(), frozenset({Decimal(m.group())}))
             for m in re.finditer(r"(?<![\w-])\d+(?![\w-])", text)
         ]
 

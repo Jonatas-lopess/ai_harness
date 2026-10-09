@@ -9,13 +9,13 @@ from pydantic import BaseModel
 from harness.llm import Completion, Usage
 from harness.narrate import narrate
 from harness.tracing import MemorySink, trace
-from harness.validators import NumberToken
+from harness.validators import Token
 
 
 class _Ints:
-    def find(self, text: str) -> Sequence[NumberToken]:
+    def find(self, text: str) -> Sequence[Token]:
         return [
-            NumberToken(m.group(), m.start(), m.end(), frozenset({Decimal(m.group())}))
+            Token(m.group(), m.start(), m.end(), frozenset({Decimal(m.group())}))
             for m in re.finditer(r"(?<![\w.])\d+(?!\w)", text)
         ]
 

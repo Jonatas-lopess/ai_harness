@@ -7,7 +7,7 @@ from closing_job import FIELD_ALIASES, narrate_closing
 from harness.testing import FixedClient
 from evals.closing import CASES, FACTS, run, run_case
 from erp_numbers import ERP_NUMBERS
-from harness.validators import mislabeled_numbers
+from harness.validators import mislabeled_tokens
 
 
 def test_closing_golden_set_passes() -> None:
@@ -28,7 +28,7 @@ def test_label_belongs_to_the_neighbouring_number_only() -> None:
     # `R$` é do 10.950,00; o 465 não pode herdá-lo só por ser o rótulo anterior mais próximo.
     values = FACTS.labelled_values()
     text = "Faturamento de R$ 10.950,00 com 465 unidades"
-    assert mislabeled_numbers(text, values, FIELD_ALIASES, ERP_NUMBERS) == []
+    assert mislabeled_tokens(text, values, FIELD_ALIASES, ERP_NUMBERS) == []
 
 
 def test_known_gap_percent_equal_to_a_date_part_is_grounded() -> None:

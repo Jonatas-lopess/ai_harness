@@ -8,7 +8,7 @@ import re
 from collections.abc import Sequence
 from decimal import Decimal
 
-from harness.validators import NumberToken
+from harness.validators import Token
 
 # Número isolado: dígito colado em letra/underscore/dígito é identificador ("A12", "B07"), não número.
 # Separadores só entram se seguidos de dígito, então o ponto final de uma frase fica de fora.
@@ -39,8 +39,8 @@ def _values(token: str) -> frozenset[Decimal]:
 
 
 class ErpNumberReader:
-    def find(self, text: str) -> Sequence[NumberToken]:
-        return [NumberToken(m.group(), m.start(), m.end(), _values(m.group())) for m in _NUMBER.finditer(text)]
+    def find(self, text: str) -> Sequence[Token]:
+        return [Token(m.group(), m.start(), m.end(), _values(m.group())) for m in _NUMBER.finditer(text)]
 
 
 ERP_NUMBERS = ErpNumberReader()

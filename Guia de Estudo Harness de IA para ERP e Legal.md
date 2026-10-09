@@ -380,7 +380,7 @@ Para acompanhar as atualizações de IA sem quebrar seus produtos, todo upgrade 
 - [x] Fase 2: job de reposição do ERP com cálculo em código e texto do LLM
 - [x] Fase 3: golden set do ERP rodando em CI, com validador de números
 - [x] Fase 4: traces com custo e request ID em todas as execuções
-- [ ] Fase 5: `ai-harness` extraído e versionado por tag
+- [x] Fase 5: `ai-harness` extraído e versionado por tag
 - [ ] Fase 6: pack Legal funcionando sem alterar o harness
 - [ ] Fase 7: jobs agendados, aprovação e `ai_insights` integrados por API
 - [ ] Fase 8: checklist de segurança e primeiro upgrade de modelo comparado por evals

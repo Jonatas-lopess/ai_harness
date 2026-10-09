@@ -22,7 +22,7 @@ SYSTEM_PROMPT = (
     "mencione dado que não esteja nos fatos."
 )
 
-# Palavras que ligam um número a um campo dos fatos (ver `mislabeled_numbers`).
+# Palavras que ligam um número a um campo dos fatos (ver `mislabeled_tokens`).
 FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "revenue": ("faturamento", "faturou", "receita", "total", "R$", "revenue"),
     "units": ("unidades", "itens", "units"),

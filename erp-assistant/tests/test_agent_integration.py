@@ -16,7 +16,7 @@ from erp_context import ErpContext, connect_readonly
 from trace_report import main
 from harness.masking import MaskingSink, production_sink
 from harness.tracing import JsonlSink, trace
-from harness.validators import ungrounded_numbers
+from harness.validators import ungrounded_tokens
 
 MODEL = "openai/gpt-oss-120b"
 AS_OF = date(2026, 1, 31)
@@ -70,7 +70,7 @@ def test_real_agent_text_has_no_ungrounded_numbers() -> None:
             max_steps=settings.max_steps,
         )
 
-    stray = ungrounded_numbers(result.text, result.tool_calls, ERP_NUMBERS)
+    stray = ungrounded_tokens(result.text, result.tool_calls, ERP_NUMBERS)
     print(f"\ntext={result.text}\nstray={stray}")
     assert stray == []
 

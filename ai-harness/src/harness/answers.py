@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from harness.agent import AgentResult, ChatClient, run_agent
 from harness.tools import ToolError, ToolRegistry
-from harness.validators import NumberReader, ungrounded_numbers
+from harness.validators import TokenReader, ungrounded_tokens
 
 # O formato que `judge` sabe ler. O prompt do pack tem que conter este texto (ou dizer o mesmo): se divergirem,
 # toda resposta do modelo vira "rejected". O resto do prompt (domínio, tom, idioma) é do pack.
@@ -61,12 +61,12 @@ def _parse(raw: str) -> Answer | str:
     return answer
 
 
-def judge(result: AgentResult, reader: NumberReader) -> QuestionResult:
+def judge(result: AgentResult, reader: TokenReader) -> QuestionResult:
     """Regras determinísticas sobre a resposta final; não chama modelo."""
     parsed = _parse(result.text)
     if isinstance(parsed, str):
         return QuestionResult("rejected", None, parsed, result)
-    stray = ungrounded_numbers(parsed.text, result.tool_calls, reader)
+    stray = ungrounded_tokens(parsed.text, result.tool_calls, reader)
     if stray:
         return QuestionResult("rejected", None, f"numbers not present in tool results: {stray}", result)
     if parsed.status == "answered":
@@ -83,7 +83,7 @@ def answer_question[C](
     question: str,
     *,
     system: str,
-    reader: NumberReader,
+    reader: TokenReader,
     model: str,
     max_steps: int,
 ) -> QuestionResult:

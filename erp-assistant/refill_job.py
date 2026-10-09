@@ -42,7 +42,7 @@ class RefillFacts(BaseModel):
         }
 
 
-# Palavras que ligam um número a um campo dos fatos (ver `mislabeled_numbers`).
+# Palavras que ligam um número a um campo dos fatos (ver `mislabeled_tokens`).
 FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "on_hand": ("estoque", "disponível", "disponivel", "em mãos", "on_hand"),
     "reorder_point": ("ponto", "reorder_point"),

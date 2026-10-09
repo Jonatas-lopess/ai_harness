@@ -45,7 +45,7 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | `replenishment.py`, `refill_job.py` | reorder detection and quantity (SQL and Python), rationale via LLM |
 | `closing.py`, `closing_job.py` | daily sales summary |
 | `harness.narrate` (in `ai-harness/`) | generic "facts to validated text" loop shared by both jobs |
-| `harness.validators` (in `ai-harness/`) | numbers in the text must come from the facts, attached to the right field; reads numbers through a `NumberReader` the pack provides |
+| `harness.validators` (in `ai-harness/`) | numbers in the text must come from the facts, attached to the right field; reads numbers through a `TokenReader` the pack provides |
 | `erp_numbers.py` | `ERP_NUMBERS`: what counts as a number in ERP text (pt-BR/en separators, ids like `A12`) |
 | `answers.py` | the ERP prompt and number reader for on-demand questions; the `STATUS:` protocol and refusal rules are `harness.answers` |
 | `harness.tracing` (in `ai-harness/`) | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL); `harness.agent` and `harness.narrate` emit spans (no-op without an active trace) |

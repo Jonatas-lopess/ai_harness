@@ -1,12 +1,11 @@
 """Laço genérico "fatos -> texto validado": o job decide os fatos, o LLM só escreve o texto.
 
 Serve a qualquer job que narre fatos (reposição, fechamento, andamentos): o que muda entre eles é o prompt,
-os fatos, os rótulos e o leitor de números (`NumberReader`), todos vindos do pack.
+os fatos, os rótulos e o leitor de números (`TokenReader`), todos vindos do pack.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import ClassVar
 
 from harness.llm import (
@@ -24,7 +23,7 @@ from pydantic import BaseModel, ConfigDict
 
 from harness.pricing import usage_attributes
 from harness.tracing import span
-from harness.validators import NumberReader, mislabeled_numbers, ungrounded_in
+from harness.validators import TokenReader, mislabeled_tokens, ungrounded_in
 
 MAX_COMPLETION_TOKENS = 256
 
@@ -51,9 +50,9 @@ def narrate(
     facts: BaseModel,
     *,
     system: str,
-    values: Mapping[str, int | Decimal],
+    values: Mapping[str, Hashable],
     aliases: Mapping[str, Sequence[str]],
-    reader: NumberReader,
+    reader: TokenReader,
     model: str,
     max_attempts: int = 3,
 ) -> Explanation:
@@ -96,7 +95,7 @@ def narrate(
                     stray = ungrounded_in(text, facts, reader)
                     if stray:
                         raise InvalidOutputError(f"numbers not present in the facts: {stray}", completion.usage)
-                    swapped = mislabeled_numbers(text, values, aliases, reader)
+                    swapped = mislabeled_tokens(text, values, aliases, reader)
                     if swapped:
                         raise InvalidOutputError(
                             f"numbers attached to the wrong field: {swapped}", completion.usage
