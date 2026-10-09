@@ -13,7 +13,7 @@ from typing import ClassVar, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from extract import LLMClient, Usage, add_usage, parse_completion
+from harness.llm import LLMClient, Usage, add_usage, parse_completion
 
 JUDGE_PROMPT_VERSION = "judge-v2"
 MAX_COMPLETION_TOKENS = 400

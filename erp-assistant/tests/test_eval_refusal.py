@@ -4,7 +4,7 @@ from answers import answer_question, judge
 from agent import AgentResult
 from evals.clients import ScriptedChat, call_tool, final
 from evals.refusal import CASES, FORECAST, LAST_MONTH, fake_ctx, fake_registry, run, run_case
-from extract import Usage
+from harness.llm import Usage
 
 
 def test_refusal_golden_set_passes() -> None:

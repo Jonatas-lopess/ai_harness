@@ -6,16 +6,8 @@ import httpx
 from groq import RateLimitError
 from pytest import MonkeyPatch, raises
 
-from extract import (
-    Completion,
-    ExtractionResult,
-    InvalidOutputError,
-    ProviderUnavailableError,
-    StockMessage,
-    Usage,
-    aextract_with_retry,
-    extract_many,
-)
+from harness.llm import Completion, InvalidOutputError, ProviderUnavailableError, Usage
+from extract import ExtractionResult, StockMessage, aextract_with_retry, extract_many
 from groq_client import AsyncGroqClient
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)

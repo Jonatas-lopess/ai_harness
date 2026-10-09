@@ -6,7 +6,7 @@ from datetime import date
 import psycopg
 from pydantic import BaseModel
 
-from extract import ExtractionError, LLMClient, Usage, add_usage
+from harness.llm import ExtractionError, LLMClient, Usage, add_usage
 from narrate import Explanation, narrate
 from pricing import costed_span
 from replenishment import DEFAULT_COVER_DAYS, DEFAULT_WINDOW_DAYS, low_stock

@@ -11,17 +11,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
-from extract import (
-    ExtractionError,
-    InvalidOutputError,
-    LLMClient,
-    RefusedError,
-    TruncatedOutputError,
-    Usage,
-    add_usage,
-    parse_completion,
-    with_feedback,
-)
+from harness.llm import ExtractionError, InvalidOutputError, LLMClient, RefusedError, TruncatedOutputError, Usage, add_usage, parse_completion, with_feedback
 from pricing import usage_attributes
 from harness.tracing import span
 from validators import mislabeled_numbers, ungrounded_in

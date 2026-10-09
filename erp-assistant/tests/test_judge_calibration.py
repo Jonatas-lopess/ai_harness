@@ -2,7 +2,7 @@ from closing import ClosingFacts
 from closing_job import narrate_closing
 from evals.clients import FixedClient
 from refill_job import RefillFacts, explain
-from extract import ProviderUnavailableError, Usage
+from harness.llm import ProviderUnavailableError, Usage
 from evals.judge_calibration import GAP_EXAMPLES, examples, calibrate
 from judge import JudgeResult, Verdict
 

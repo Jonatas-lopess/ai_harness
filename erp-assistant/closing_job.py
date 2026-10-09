@@ -6,7 +6,7 @@ from datetime import date
 import psycopg
 
 from closing import ClosingFacts, closing_facts
-from extract import LLMClient, Usage
+from harness.llm import LLMClient, Usage
 from narrate import Explanation, narrate
 from pricing import costed_span
 

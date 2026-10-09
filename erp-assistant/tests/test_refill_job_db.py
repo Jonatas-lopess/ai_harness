@@ -5,7 +5,7 @@ from typing import cast, final
 
 from pytest import mark
 
-from extract import Completion, Usage
+from harness.llm import Completion, Usage
 from refill_job import PROMPT_VERSION, run_refill_job
 from settings import get_settings
 from tests.test_refill_job import ScriptedClient

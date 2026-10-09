@@ -10,7 +10,7 @@ from groq import (
 )
 from pytest import MonkeyPatch, mark, raises
 
-from extract import ExtractionError, InvalidOutputError, ProviderUnavailableError
+from harness.llm import ExtractionError, InvalidOutputError, ProviderUnavailableError
 from groq_client import GroqClient
 
 

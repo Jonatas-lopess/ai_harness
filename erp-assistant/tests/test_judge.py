@@ -3,7 +3,7 @@ from typing import Any, cast
 
 from pytest import raises
 
-from extract import Completion, InvalidOutputError, ProviderUnavailableError, Usage
+from harness.llm import Completion, InvalidOutputError, ProviderUnavailableError, Usage
 from judge import SYSTEM_PROMPT, JudgeResult, LLMJudge
 
 

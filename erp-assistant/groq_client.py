@@ -27,7 +27,7 @@ from agent import (
     ToolMessage,
     UserMessage,
 )
-from extract import Completion, InvalidOutputError, ProviderUnavailableError, Usage
+from harness.llm import Completion, InvalidOutputError, ProviderUnavailableError, Usage
 from harness.tools import ToolSchema
 from harness.tracing import current_span
 

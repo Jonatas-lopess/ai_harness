@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from agent import AssistantMessage, ChatResponse, Message, ToolCall
-from extract import Completion, Usage
+from harness.llm import Completion, Usage
 from harness.tools import ToolSchema
 
 

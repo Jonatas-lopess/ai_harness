@@ -6,7 +6,7 @@ from pytest import fixture, mark
 
 from closing import closing_facts
 from closing_job import PROMPT_VERSION, run_closing_job
-from extract import Completion, Usage
+from harness.llm import Completion, Usage
 from settings import get_settings
 from tests.test_refill_job import ScriptedClient
 from erp_context import connect_readonly

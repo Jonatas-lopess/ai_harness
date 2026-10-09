@@ -18,7 +18,7 @@ from typing import Literal
 
 from closing import ClosingFacts
 from evals import closing, fidelity
-from extract import ExtractionError, Usage, add_usage
+from harness.llm import ExtractionError, Usage, add_usage
 from judge import Judge, Verdict
 
 MAX_FALSE_FAITHFUL_RATE = 0.10  # calibrar de novo se o modelo do juiz mudar

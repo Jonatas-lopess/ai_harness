@@ -2,15 +2,8 @@ import asyncio
 
 from pytest import mark, raises
 
-from extract import (
-    ExtractionError,
-    ExtractionResult,
-    InvalidOutputError,
-    StockMessage,
-    extract_many,
-    extract_text,
-    extract_with_retry,
-)
+from harness.llm import ExtractionError, InvalidOutputError
+from extract import ExtractionResult, StockMessage, extract_many, extract_text, extract_with_retry
 from groq_client import AsyncGroqClient, GroqClient
 from pricing import load_prices, log_run_cost
 from settings import get_settings

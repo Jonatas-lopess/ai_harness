@@ -5,7 +5,8 @@ from pathlib import Path
 from pydantic import ValidationError
 from pytest import LogCaptureFixture, raises
 
-from extract import ExtractionResult, StockMessage, Usage
+from harness.llm import Usage
+from extract import ExtractionResult, StockMessage
 from pricing import JobCost, Price, PriceTable, compute_cost, costed_span, job_cost, load_prices, log_run_cost, usage_attributes
 from harness.tracing import MemorySink, Span, span, trace
 

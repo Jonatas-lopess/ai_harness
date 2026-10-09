@@ -2,18 +2,8 @@ from typing import Any
 
 from pytest import raises
 
-from extract import (
-    Completion,
-    ExtractionError,
-    InvalidOutputError,
-    ProviderUnavailableError,
-    RefusedError,
-    StockMessage,
-    TruncatedOutputError,
-    Usage,
-    extract_text,
-    extract_with_retry,
-)
+from harness.llm import Completion, InvalidOutputError, ProviderUnavailableError, TruncatedOutputError, Usage
+from extract import StockMessage, extract_text, extract_with_retry
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 
@@ -44,43 +34,6 @@ def test_missing_field_stays_none() -> None:
     result = run(Completion('{"product_name": "Parafuso", "stock_level": null}', "stop"))
 
     assert result.stock_level is None
-
-
-def test_truncated_raises_with_usage() -> None:
-    with raises(TruncatedOutputError) as info:
-        _ = run(Completion('{"product_name": "Para', "length", usage=USAGE))
-
-    assert info.value.usage == USAGE
-
-
-def test_refusal_raises() -> None:
-    with raises(RefusedError):
-        _ = run(Completion(None, "stop", refusal="não posso ajudar"))
-
-
-def test_empty_content_raises() -> None:
-    with raises(InvalidOutputError):
-        _ = run(Completion(None, "stop"))
-
-
-def test_broken_json_raises() -> None:
-    with raises(InvalidOutputError):
-        _ = run(Completion("isso não é json", "stop"))
-
-
-def test_wrong_type_raises() -> None:
-    with raises(InvalidOutputError):
-        _ = run(Completion('{"product_name": "Parafuso", "stock_level": "muito"}', "stop"))
-
-
-def test_extra_field_raises() -> None:
-    with raises(InvalidOutputError):
-        _ = run(Completion('{"product_name": "P", "stock_level": 1, "price": 9.9}', "stop"))
-
-
-def test_all_errors_share_base() -> None:
-    with raises(ExtractionError):
-        _ = run(Completion("{}", "stop"))
 
 
 def test_sends_schema_and_params() -> None:
