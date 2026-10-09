@@ -85,7 +85,7 @@ def test_retry_limits_are_passed_to_sdk() -> None:
 def test_provider_parameters_in_the_trace_are_the_ones_sent_to_the_sdk(monkeypatch: MonkeyPatch) -> None:
     from groq.types.chat import ChatCompletion
 
-    from tracing import MemorySink, span, trace
+    from harness.tracing import MemorySink, span, trace
 
     sent: dict[str, Any] = {}  # pyright: ignore[reportExplicitAny]
     reply = ChatCompletion.model_validate(
@@ -118,7 +118,7 @@ def test_provider_parameters_in_the_trace_are_the_ones_sent_to_the_sdk(monkeypat
 
 
 def test_provider_parameters_are_recorded_even_when_the_call_fails(monkeypatch: MonkeyPatch) -> None:
-    from tracing import MemorySink, span, trace
+    from harness.tracing import MemorySink, span, trace
 
     client = make_client(monkeypatch, bad_request("something_else"))
     sink = MemorySink()

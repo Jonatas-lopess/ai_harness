@@ -12,7 +12,7 @@ from typing import ClassVar, Literal
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from agent import AgentResult, ChatClient, run_agent
-from tools import ToolContext, ToolError, ToolRegistry
+from harness.tools import ToolError, ToolRegistry
 from validators import ungrounded_numbers
 
 PROMPT_VERSION = "ask-v1"
@@ -78,10 +78,10 @@ def judge(result: AgentResult) -> QuestionResult:
     return QuestionResult(parsed.status, parsed.text, None, result)
 
 
-def answer_question(
+def answer_question[C](
     client: ChatClient,
-    registry: ToolRegistry,
-    ctx: ToolContext,
+    registry: ToolRegistry[C],
+    ctx: C,
     question: str,
     *,
     model: str,

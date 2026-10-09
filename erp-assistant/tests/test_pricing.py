@@ -7,7 +7,7 @@ from pytest import LogCaptureFixture, raises
 
 from extract import ExtractionResult, StockMessage, Usage
 from pricing import JobCost, Price, PriceTable, compute_cost, costed_span, job_cost, load_prices, log_run_cost, usage_attributes
-from tracing import MemorySink, Span, span, trace
+from harness.tracing import MemorySink, Span, span, trace
 
 PRICE = Price(input_per_mtok=Decimal("0.15"), output_per_mtok=Decimal("0.60"))
 

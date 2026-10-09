@@ -5,6 +5,7 @@ description = "Assistant harness for ERP"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "ai-harness",
     "groq>=1.7.0",
     "psycopg[binary]>=3.3.6",
     "pydantic>=2.13.5",
@@ -25,3 +26,6 @@ markers = ["integration"]
 [tool.basedpyright]
 venvPath = "."
 venv = ".venv"
+
+[tool.uv.sources]
+ai-harness = { path = "../ai-harness", editable = true }

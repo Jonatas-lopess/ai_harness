@@ -9,9 +9,9 @@ from groq_client import GroqClient
 from masking import production_sink
 from refill_job import run_refill_job
 from settings import get_settings
-from tools import connect_readonly
+from erp_context import connect_readonly
 from trace_report import main
-from tracing import JsonlSink, trace
+from harness.tracing import JsonlSink, trace
 
 MODEL = "openai/gpt-oss-120b"
 AS_OF = date(2026, 1, 31)

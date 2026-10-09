@@ -28,8 +28,8 @@ from agent import (
     UserMessage,
 )
 from extract import Completion, InvalidOutputError, ProviderUnavailableError, Usage
-from tools import ToolSchema
-from tracing import current_span
+from harness.tools import ToolSchema
+from harness.tracing import current_span
 
 JSON_VALIDATE_FAILED = "json_validate_failed"
 

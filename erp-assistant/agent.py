@@ -15,8 +15,8 @@ from extract import (
     add_usage,
 )
 from pricing import usage_attributes
-from tools import ToolContext, ToolError, ToolRegistry, ToolSchema
-from tracing import span
+from harness.tools import ToolError, ToolRegistry, ToolSchema
+from harness.tracing import span
 
 DEFAULT_MAX_COMPLETION_TOKENS = 1024
 
@@ -108,10 +108,10 @@ def _parse_arguments(raw: str) -> dict[str, object] | ToolError:
     return cast("dict[str, object]", parsed)
 
 
-def run_agent(
+def run_agent[C](
     client: ChatClient,
-    registry: ToolRegistry,
-    ctx: ToolContext,
+    registry: ToolRegistry[C],
+    ctx: C,
     *,
     model: str,
     system: str,

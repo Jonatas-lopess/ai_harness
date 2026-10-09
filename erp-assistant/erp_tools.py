@@ -7,13 +7,14 @@ from psycopg.rows import class_row
 from pydantic import BaseModel, Field
 
 from replenishment import low_stock as detect_low_stock
-from tools import Tool, ToolContext, ToolError, ToolInput, ToolRegistry, make_tool
+from harness.tools import Tool, ToolError, ToolInput, ToolRegistry, make_tool
+from erp_context import ErpContext
 
 MAX_LOW_STOCK_ITEMS = 50
 MAX_SALES_DAYS = 90
 
 
-def _product_exists(ctx: ToolContext, product_id: int) -> bool:
+def _product_exists(ctx: ErpContext, product_id: int) -> bool:
     row = ctx.conn.execute("SELECT 1 FROM products WHERE id = %s", (product_id,)).fetchone()
     return row is not None
 
@@ -45,7 +46,7 @@ class LowStockOutput(BaseModel):
     truncated: bool
 
 
-def _low_stock(ctx: ToolContext, _args: LowStockInput) -> BaseModel:
+def _low_stock(ctx: ErpContext, _args: LowStockInput) -> BaseModel:
     flagged = detect_low_stock(ctx.conn, ctx.as_of)
     # Prioridade decidida pelo código: maior quantidade sugerida primeiro.
     flagged.sort(key=lambda p: (-p.suggested_qty, p.product_id))
@@ -108,7 +109,7 @@ ORDER BY sale_date
 """
 
 
-def _recent_sales(ctx: ToolContext, args: RecentSalesInput) -> BaseModel:
+def _recent_sales(ctx: ErpContext, args: RecentSalesInput) -> BaseModel:
     if not _product_exists(ctx, args.product_id):
         return _unknown_product(args.product_id)
     params = {
@@ -153,7 +154,7 @@ class _OpenOrderRow:
     expected_date: date
 
 
-def _open_purchase_orders(ctx: ToolContext, args: OpenPurchaseOrdersInput) -> BaseModel:
+def _open_purchase_orders(ctx: ErpContext, args: OpenPurchaseOrdersInput) -> BaseModel:
     if not _product_exists(ctx, args.product_id):
         return _unknown_product(args.product_id)
     with ctx.conn.cursor(row_factory=class_row(_OpenOrderRow)) as cur:
@@ -193,7 +194,7 @@ class _SupplierRow:
     lead_time_days: int
 
 
-def _supplier_lead_time(ctx: ToolContext, args: SupplierLeadTimeInput) -> BaseModel:
+def _supplier_lead_time(ctx: ErpContext, args: SupplierLeadTimeInput) -> BaseModel:
     with ctx.conn.cursor(row_factory=class_row(_SupplierRow)) as cur:
         row = cur.execute(
             "SELECT name, lead_time_days FROM suppliers WHERE id = %s", (args.supplier_id,)
@@ -208,7 +209,7 @@ def _supplier_lead_time(ctx: ToolContext, args: SupplierLeadTimeInput) -> BaseMo
 # registry ----------------------------------------------------------------------------------
 
 
-def erp_tools() -> list[Tool]:
+def erp_tools() -> list[Tool[ErpContext]]:
     return [
         make_tool(
             "low_stock",
@@ -240,5 +241,5 @@ def erp_tools() -> list[Tool]:
     ]
 
 
-def erp_registry() -> ToolRegistry:
+def erp_registry() -> ToolRegistry[ErpContext]:
     return ToolRegistry(erp_tools())

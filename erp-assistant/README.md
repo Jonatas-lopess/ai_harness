@@ -25,6 +25,7 @@ uv sync
 | Calibrate the LLM judge (real Groq calls) | `uv run python -m evals.judge_calibration` |
 | Rebuild the story of one run from its request ID (`--full` adds prompt and results) | `uv run python -m trace_report <request_id> [--file traces.jsonl] [--full]` |
 | Typecheck (must stay at 0 errors, 0 warnings) | `uv run basedpyright` |
+| Harness tests and typecheck (run inside `ai-harness/`) | `uv run pytest` and `uv run basedpyright` |
 
 CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simulated evals and the typecheck. It never calls an LLM: that keeps it free, deterministic and secret-free. Real calls run by hand before merging a prompt, model or SDK change.
 
@@ -34,14 +35,15 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | --- | --- |
 | `extract.py`, `groq_client.py` | `LLMClient` protocol, retry, usage; `groq_client.py` is the only file that knows the Groq SDK |
 | `pricing.py`, `prices.json` | versioned prices, cost per call and per job (`costed_span`) recorded in the trace |
-| `tools.py`, `erp_tools.py` | read-only tool registry and the ERP tools |
+| `erp_context.py` | `ErpContext` (DB connection + `as_of`) and `connect_readonly`: what the harness hands to every ERP tool |
+| `erp_tools.py` | the ERP tools; the generic registry (`harness.tools`) lives in `ai-harness/` |
 | `agent.py` | agent loop with step budget |
 | `replenishment.py`, `refill_job.py` | reorder detection and quantity (SQL and Python), rationale via LLM |
 | `closing.py`, `closing_job.py` | daily sales summary |
 | `narrate.py` | generic "facts to validated text" loop shared by both jobs |
 | `validators.py` | numbers in the text must come from the facts, attached to the right field |
 | `answers.py` | on-demand questions with `STATUS: answered / insufficient_data` and refusal rules |
-| `tracing.py` | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL); `agent.py` and `narrate.py` emit spans (no-op without an active trace) |
+| `harness.tracing` (in `ai-harness/`) | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL); `agent.py` and `narrate.py` emit spans (no-op without an active trace) |
 | `masking.py` | `MaskingSink`: allowlist of trace attributes, PII patterns scrubbed from free text, rest masked; `production_sink(path)` is the way to build the JSONL sink (default `traces/traces.jsonl`, git-ignored) |
 | `trace_report.py` | reads the JSONL and prints the span tree, totals and cost for one `request_id`; last trace wins with a warning, a corrupt line aborts |
 | `judge.py` | LLM-as-judge for fidelity (different model family than the generator) |

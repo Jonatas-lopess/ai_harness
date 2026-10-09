@@ -10,7 +10,7 @@ from typing import ClassVar
 from pydantic import BaseModel, ConfigDict
 
 from extract import ExtractionResult, Usage
-from tracing import Span, current_trace, descendants, span
+from harness.tracing import Span, current_trace, descendants, span
 
 logger = logging.getLogger(__name__)
 

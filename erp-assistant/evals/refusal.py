@@ -16,7 +16,8 @@ from pydantic import BaseModel
 from agent import ChatResponse
 from answers import Status, answer_question
 from evals.clients import ScriptedChat, call_tool, final
-from tools import ToolContext, ToolInput, ToolRegistry, make_tool
+from harness.tools import ToolInput, ToolRegistry, make_tool
+from erp_context import ErpContext
 
 FORECAST = "Qual será a venda do mês que vem?"
 LAST_MONTH = "Quantas unidades vendemos no mês passado?"
@@ -30,7 +31,7 @@ class _Sales(BaseModel):
     total_quantity: int
 
 
-def fake_registry() -> ToolRegistry:
+def fake_registry() -> ToolRegistry[ErpContext]:
     """Uma tool de vendas passadas que devolve 300. Não existe tool de previsão (de propósito)."""
     return ToolRegistry(
         [
@@ -44,9 +45,9 @@ def fake_registry() -> ToolRegistry:
     )
 
 
-def fake_ctx() -> ToolContext:
+def fake_ctx() -> ErpContext:
     # As tools falsas não usam o banco.
-    return ToolContext(conn=cast("psycopg.Connection", object()), as_of=date(2026, 1, 31))
+    return ErpContext(conn=cast("psycopg.Connection", object()), as_of=date(2026, 1, 31))
 
 
 def _reply(status: str, text: str) -> str:

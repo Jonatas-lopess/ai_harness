@@ -16,7 +16,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
-from tracing import JsonlSink, Span, Trace, TraceSink
+from harness.tracing import JsonlSink, Span, Trace, TraceSink
 
 # Fora do Git (ver .gitignore): mesmo mascarado, trace é dado de execução.
 DEFAULT_TRACE_PATH = Path(__file__).parent / "traces" / "traces.jsonl"

@@ -5,7 +5,7 @@ from pytest import raises
 from extract import Completion, ProviderUnavailableError, Usage
 from narrate import MAX_COMPLETION_TOKENS, Rationale
 from refill_job import RefillFacts, explain
-from tracing import MemorySink, trace
+from harness.tracing import MemorySink, trace
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 FACTS = RefillFacts(

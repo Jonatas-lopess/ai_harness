@@ -1,7 +1,7 @@
 {
-  "include": ["erp-assistant"],
+  "include": ["erp-assistant", "ai-harness/src", "ai-harness/tests"],
   "exclude": ["**/.venv", "**/__pycache__"],
-  "extraPaths": ["erp-assistant"],
+  "extraPaths": ["erp-assistant", "ai-harness/src"],
   "venvPath": "erp-assistant",
   "venv": ".venv",
   "pythonVersion": "3.12"

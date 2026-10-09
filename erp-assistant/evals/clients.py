@@ -6,7 +6,7 @@ from typing import Any
 
 from agent import AssistantMessage, ChatResponse, Message, ToolCall
 from extract import Completion, Usage
-from tools import ToolSchema
+from harness.tools import ToolSchema
 
 
 class FixedClient:

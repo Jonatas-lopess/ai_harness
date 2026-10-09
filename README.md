@@ -19,19 +19,21 @@ Study project, built in sequential phases (details in `CLAUDE.md`; full guide in
 | 2. ERP detection | reorder job: code computes quantity, LLM writes the rationale | done |
 | 3. Validators and evals | golden sets, CI that fails on a wrong number, calibrated LLM judge | done |
 | 4. Observability | every run traceable | done (spans, request ID, instrumented loop, cost per job, masking, `trace_report`, provider parameters and tool schemas in the trace) |
-| 5-8 | harness extraction, Legal pack, triggers, hardening | planned |
+| 5. Harness extraction | `ai-harness` package, ERP imports from it | in progress (step 1: `tracing`, `tools`) |
+| 6-8 | Legal pack, triggers, hardening | planned |
 
-Only the ERP pack exists so far, in `erp-assistant/`. The harness is not extracted yet (phase 5): its pieces still live next to the ERP code and are written to be moved. The Legal pack comes after, as the test that the harness is really domain-agnostic.
+Only the ERP pack exists so far, in `erp-assistant/`. The harness extraction (phase 5) is under way: `ai-harness/` already holds `tracing` and `tools`; the rest still lives next to the ERP code and moves step by step. The Legal pack comes after, as the test that the harness is really domain-agnostic.
 
 ## Structure
 
 ```
+ai-harness/           # domain-agnostic library, package `harness` (see below)
 erp-assistant/        # ERP pack: working code, tests, evals, notes (see its README)
 docs/agents/          # issue tracker and domain-doc conventions for coding agents
 .github/workflows/    # CI: unit tests, simulated evals, typecheck (no network, no secrets)
 ```
 
-Planned, not created yet:
+Planned for `ai-harness/` (today: `tracing`, `tools`); not created yet: `legal-assistant/`.
 
 ```
 ai-harness/           # library, versioned by tag

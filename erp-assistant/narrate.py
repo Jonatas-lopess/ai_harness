@@ -23,7 +23,7 @@ from extract import (
     with_feedback,
 )
 from pricing import usage_attributes
-from tracing import span
+from harness.tracing import span
 from validators import mislabeled_numbers, ungrounded_in
 
 MAX_COMPLETION_TOKENS = 256

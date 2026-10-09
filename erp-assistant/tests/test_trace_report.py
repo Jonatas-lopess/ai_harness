@@ -7,7 +7,7 @@ from pytest import CaptureFixture, raises
 from masking import production_sink
 from pricing import costed_span
 from trace_report import CorruptTraceLine, find_traces, main, render
-from tracing import JsonlSink, Span, Trace, span, trace
+from harness.tracing import JsonlSink, Span, Trace, span, trace
 
 
 def _span(

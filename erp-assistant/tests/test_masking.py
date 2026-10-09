@@ -7,7 +7,7 @@ from pytest import mark
 from closing import ClosingFacts
 from masking import MaskingSink, MaskPolicy, mask_span, scrub_text
 from refill_job import RefillFacts
-from tracing import JsonlSink, MemorySink, Span, span, trace
+from harness.tracing import JsonlSink, MemorySink, Span, span, trace
 from validators import ungrounded_in
 
 CPF = "123.456.789-09"
@@ -148,7 +148,7 @@ def test_every_attribute_the_code_emits_is_classified() -> None:
     # Os parâmetros do provedor vêm do `groq_client`, que os fakes acima não exercitam: emitir um span à mão com eles.
     with trace("run", MaskingSink(inner)):
         from groq_client import _record_request  # pyright: ignore[reportPrivateUsage]
-        from tracing import span
+        from harness.tracing import span
 
         with span("llm_call"):
             _record_request(256)

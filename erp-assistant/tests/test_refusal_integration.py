@@ -6,7 +6,7 @@ from answers import answer_question
 from erp_tools import erp_registry
 from groq_client import GroqClient
 from settings import get_settings
-from tools import ToolContext, connect_readonly
+from erp_context import ErpContext, connect_readonly
 
 MODEL = "openai/gpt-oss-120b"
 AS_OF = date(2026, 1, 31)
@@ -31,7 +31,7 @@ def test_real_model_refuses_or_answers(question: str, expected: str) -> None:
         result = answer_question(
             client,
             erp_registry(),
-            ToolContext(conn=conn, as_of=AS_OF),
+            ErpContext(conn=conn, as_of=AS_OF),
             question,
             model=MODEL,
             max_steps=settings.max_steps,

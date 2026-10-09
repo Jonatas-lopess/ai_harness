@@ -16,7 +16,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from masking import DEFAULT_TRACE_PATH
 from pricing import job_cost
-from tracing import Span, Trace
+from harness.tracing import Span, Trace
 
 # Atributos que aparecem na linha do span; o resto (prompt, resultado, argumentos) só com `--full`.
 SUMMARY_KEYS = (

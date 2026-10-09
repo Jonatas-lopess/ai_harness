@@ -9,8 +9,8 @@ from extract import Completion, Usage
 from refill_job import PROMPT_VERSION, run_refill_job
 from settings import get_settings
 from tests.test_refill_job import ScriptedClient
-from tools import connect_readonly
-from tracing import MemorySink, trace
+from erp_context import connect_readonly
+from harness.tracing import MemorySink, trace
 
 AS_OF = date(2026, 1, 31)
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)

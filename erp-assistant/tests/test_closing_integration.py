@@ -5,7 +5,7 @@ from pytest import mark
 from closing_job import run_closing_job
 from groq_client import GroqClient
 from settings import get_settings
-from tools import connect_readonly
+from erp_context import connect_readonly
 
 MODEL = "openai/gpt-oss-120b"
 

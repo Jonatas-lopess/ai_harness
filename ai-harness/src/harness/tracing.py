@@ -1,6 +1,6 @@
 """Tracing mínimo: uma execução = um trace (árvore de spans) com `request_id`.
 
-Genérico, sem nada de ERP (candidato a ir para o harness na fase 5). Formato parecido com OpenTelemetry
+Genérico, sem nada de ERP. Formato parecido com OpenTelemetry
 (trace_id, span_id, parent_id) para trocar o destino depois sem reescrever quem instrumenta.
 """
 

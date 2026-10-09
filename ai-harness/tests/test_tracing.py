@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pytest import raises
 
-from tracing import JsonlSink, MemorySink, Trace, current_trace, descendants, span, trace
+from harness.tracing import JsonlSink, MemorySink, Trace, current_trace, descendants, span, trace
 
 
 def only(sink: MemorySink) -> Trace:

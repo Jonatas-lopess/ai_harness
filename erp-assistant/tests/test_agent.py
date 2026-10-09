@@ -18,8 +18,9 @@ from agent import (
     run_agent,
 )
 from extract import InvalidOutputError, ProviderUnavailableError, TruncatedOutputError, Usage
-from tools import ToolContext, ToolError, ToolInput, ToolRegistry, ToolSchema, make_tool
-from tracing import MemorySink, span, trace
+from harness.tools import ToolError, ToolInput, ToolRegistry, ToolSchema, make_tool
+from erp_context import ErpContext
+from harness.tracing import MemorySink, span, trace
 
 AS_OF = date(2026, 1, 31)
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
@@ -41,7 +42,7 @@ class _Pong(BaseModel):
     ok: bool
 
 
-def _registry() -> ToolRegistry:
+def _registry() -> ToolRegistry[ErpContext]:
     return ToolRegistry(
         [
             make_tool("echo", "Echo n.", _EchoInput, lambda _ctx, args: _EchoOutput(n=args.n)),
@@ -50,8 +51,8 @@ def _registry() -> ToolRegistry:
     )
 
 
-def _ctx() -> ToolContext:
-    return ToolContext(conn=cast("psycopg.Connection", object()), as_of=AS_OF)
+def _ctx() -> ErpContext:
+    return ErpContext(conn=cast("psycopg.Connection", object()), as_of=AS_OF)
 
 
 class ScriptedChat:
@@ -228,7 +229,7 @@ def test_empty_final_answer_raises():
 
 
 def test_bug_inside_a_tool_is_not_swallowed():
-    def boom(_ctx: ToolContext, _args: _NoArgs) -> BaseModel:
+    def boom(_ctx: ErpContext, _args: _NoArgs) -> BaseModel:
         raise RuntimeError("db down")
 
     registry = ToolRegistry([make_tool("boom", "Fails.", _NoArgs, boom)])

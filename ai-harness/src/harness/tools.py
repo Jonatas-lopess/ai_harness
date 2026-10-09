@@ -1,20 +1,14 @@
-"""Mecanismo de tools: genérico, sem nada de ERP (candidato a ir para o harness na fase 5)."""
+"""Mecanismo de tools: genérico, sem nada de ERP.
+
+O contexto (`C`) é um parâmetro de tipo: o harness só o repassa à tool. Cada pack define o seu
+(conexão de banco, cliente HTTP, data de referência...), então nada de domínio entra aqui.
+"""
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
 from typing import ClassVar, TypedDict
 
-import psycopg
 from pydantic import BaseModel, ConfigDict, ValidationError
-
-
-@dataclass(frozen=True)
-class ToolContext:
-    """O que o harness injeta em toda tool. O modelo nunca escolhe estes valores (ex.: `as_of`)."""
-
-    conn: psycopg.Connection
-    as_of: date
 
 
 class ToolInput(BaseModel):
@@ -38,23 +32,23 @@ class ToolError(BaseModel):
 
 
 @dataclass(frozen=True)
-class Tool:
+class Tool[C]:
     name: str
     description: str
     parameters: dict[str, object]
-    run_fn: Callable[[ToolContext, Mapping[str, object]], BaseModel]
+    run_fn: Callable[[C, Mapping[str, object]], BaseModel]
 
-    def run(self, ctx: ToolContext, raw_args: Mapping[str, object]) -> BaseModel:
+    def run(self, ctx: C, raw_args: Mapping[str, object]) -> BaseModel:
         return self.run_fn(ctx, raw_args)
 
 
-def make_tool[InputT: BaseModel](
+def make_tool[C, InputT: BaseModel](
     name: str,
     description: str,
     input_model: type[InputT],
-    fn: Callable[[ToolContext, InputT], BaseModel],
-) -> Tool:
-    def run(ctx: ToolContext, raw_args: Mapping[str, object]) -> BaseModel:
+    fn: Callable[[C, InputT], BaseModel],
+) -> Tool[C]:
+    def run(ctx: C, raw_args: Mapping[str, object]) -> BaseModel:
         try:
             args = input_model.model_validate(raw_args)
         except ValidationError as exc:
@@ -74,9 +68,9 @@ def _format_validation_error(exc: ValidationError) -> str:
     return "invalid arguments: " + "; ".join(problems)
 
 
-class ToolRegistry:
-    def __init__(self, tools: Sequence[Tool]) -> None:
-        self._tools: dict[str, Tool] = {}
+class ToolRegistry[C]:
+    def __init__(self, tools: Sequence[Tool[C]]) -> None:
+        self._tools: dict[str, Tool[C]] = {}
         for tool in tools:
             if tool.name in self._tools:
                 raise ValueError(f"duplicate tool name: {tool.name}")
@@ -88,16 +82,9 @@ class ToolRegistry:
             for t in self._tools.values()
         ]
 
-    def call(self, name: str, ctx: ToolContext, raw_args: Mapping[str, object]) -> BaseModel:
+    def call(self, name: str, ctx: C, raw_args: Mapping[str, object]) -> BaseModel:
         tool = self._tools.get(name)
         if tool is None:
             return ToolError(error=f"unknown tool '{name}'; available: {', '.join(self._tools)}")
         return tool.run(ctx, raw_args)
 
-
-def connect_readonly(url: str) -> psycopg.Connection:
-    """Conexão em que o Postgres recusa qualquer escrita, mesmo que uma tool tente.
-
-    Defesa em profundidade; em produção o ideal é também uma role sem INSERT/UPDATE/DELETE.
-    """
-    return psycopg.connect(url, options="-c default_transaction_read_only=on")

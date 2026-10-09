@@ -15,10 +15,11 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
+from erp_context import ErpContext
 from agent import BudgetExceededError, ChatResponse, ToolCallRecord, run_agent
 from evals.clients import ScriptedChat, call_tool, final
 from evals.refusal import fake_ctx
-from tools import ToolInput, ToolRegistry, make_tool
+from harness.tools import ToolInput, ToolRegistry, make_tool
 
 QUESTION = "Quantas unidades vendemos no mês passado?"
 
@@ -35,7 +36,7 @@ class _Stock(BaseModel):
     on_hand: int
 
 
-def registry() -> ToolRegistry:
+def registry() -> ToolRegistry[ErpContext]:
     return ToolRegistry(
         [
             make_tool("sales_total", "Units sold last month.", _NoArgs, lambda _c, _a: _Sales(total_quantity=300)),

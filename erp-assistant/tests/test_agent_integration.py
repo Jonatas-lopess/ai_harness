@@ -9,10 +9,10 @@ from agent import run_agent
 from erp_tools import erp_registry
 from groq_client import GroqClient
 from settings import get_settings
-from tools import ToolContext, connect_readonly
+from erp_context import ErpContext, connect_readonly
 from trace_report import main
 from masking import MaskingSink, production_sink
-from tracing import JsonlSink, trace
+from harness.tracing import JsonlSink, trace
 from validators import ungrounded_numbers
 
 MODEL = "openai/gpt-oss-120b"
@@ -33,7 +33,7 @@ def test_real_agent_calls_low_stock_and_cites_its_numbers() -> None:
         result = run_agent(
             client,
             erp_registry(),
-            ToolContext(conn=conn, as_of=AS_OF),
+            ErpContext(conn=conn, as_of=AS_OF),
             model=MODEL,
             system=SYSTEM,
             user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um?",
@@ -60,7 +60,7 @@ def test_real_agent_text_has_no_ungrounded_numbers() -> None:
         result = run_agent(
             client,
             erp_registry(),
-            ToolContext(conn=conn, as_of=AS_OF),
+            ErpContext(conn=conn, as_of=AS_OF),
             model=MODEL,
             system=SYSTEM,
             user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um? Some o total a pedir.",
@@ -83,7 +83,7 @@ def test_real_agent_trace_explains_the_run(tmp_path: Path) -> None:
             result = run_agent(
                 client,
                 erp_registry(),
-                ToolContext(conn=conn, as_of=AS_OF),
+                ErpContext(conn=conn, as_of=AS_OF),
                 model=MODEL,
                 system=SYSTEM,
                 user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um?",
@@ -119,7 +119,7 @@ def test_real_masked_trace_hides_the_cpf_but_keeps_what_explains_the_run(tmp_pat
             result = run_agent(
                 client,
                 erp_registry(),
-                ToolContext(conn=conn, as_of=AS_OF),
+                ErpContext(conn=conn, as_of=AS_OF),
                 model=MODEL,
                 system=SYSTEM,
                 user=f"O solicitante (CPF {cpf}) quer saber quais produtos precisam de reposição hoje e quanto pedir.",
@@ -149,7 +149,7 @@ def test_real_run_can_be_explained_end_to_end_from_the_request_id(tmp_path: Path
             result = run_agent(
                 client,
                 erp_registry(),
-                ToolContext(conn=conn, as_of=AS_OF),
+                ErpContext(conn=conn, as_of=AS_OF),
                 model=MODEL,
                 system=SYSTEM,
                 user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um?",

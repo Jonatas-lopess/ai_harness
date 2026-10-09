@@ -9,8 +9,8 @@ from closing_job import PROMPT_VERSION, run_closing_job
 from extract import Completion, Usage
 from settings import get_settings
 from tests.test_refill_job import ScriptedClient
-from tools import connect_readonly
-from tracing import MemorySink, trace
+from erp_context import connect_readonly
+from harness.tracing import MemorySink, trace
 
 pytestmark = mark.integration
 
