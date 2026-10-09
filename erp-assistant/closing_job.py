@@ -6,8 +6,9 @@ from datetime import date
 import psycopg
 
 from closing import ClosingFacts, closing_facts
+from erp_numbers import ERP_NUMBERS
 from harness.llm import LLMClient, Usage
-from narrate import Explanation, narrate
+from harness.narrate import Explanation, narrate
 from erp_prices import load_erp_prices
 from harness.pricing import costed_span
 
@@ -47,6 +48,7 @@ def narrate_closing(
         system=SYSTEM_PROMPT,
         values=facts.labelled_values(),
         aliases=FIELD_ALIASES,
+        reader=ERP_NUMBERS,
         model=model,
         max_attempts=max_attempts,
     )

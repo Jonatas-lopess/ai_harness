@@ -5,7 +5,10 @@ from typing import cast
 
 from pytest import CaptureFixture, mark
 
-from agent import run_agent
+from erp_numbers import ERP_NUMBERS
+from erp_prices import load_erp_prices
+from harness.pricing import costed_span
+from harness.agent import run_agent
 from erp_tools import erp_registry
 from groq_client import GroqClient
 from settings import get_settings
@@ -13,7 +16,7 @@ from erp_context import ErpContext, connect_readonly
 from trace_report import main
 from masking import MaskingSink, production_sink
 from harness.tracing import JsonlSink, trace
-from validators import ungrounded_numbers
+from harness.validators import ungrounded_numbers
 
 MODEL = "openai/gpt-oss-120b"
 AS_OF = date(2026, 1, 31)
@@ -67,7 +70,7 @@ def test_real_agent_text_has_no_ungrounded_numbers() -> None:
             max_steps=settings.max_steps,
         )
 
-    stray = ungrounded_numbers(result.text, result.tool_calls)
+    stray = ungrounded_numbers(result.text, result.tool_calls, ERP_NUMBERS)
     print(f"\ntext={result.text}\nstray={stray}")
     assert stray == []
 
@@ -146,15 +149,17 @@ def test_real_run_can_be_explained_end_to_end_from_the_request_id(tmp_path: Path
 
     with connect_readonly(settings.database_url.get_secret_value()) as conn:
         with trace("real-agent", production_sink(path), request_id="real-4"):
-            result = run_agent(
-                client,
-                erp_registry(),
-                ErpContext(conn=conn, as_of=AS_OF),
-                model=MODEL,
-                system=SYSTEM,
-                user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um?",
-                max_steps=settings.max_steps,
-            )
+            # O custo só é conhecido dentro de um job com tabela de preços (passo 3 da fase 5).
+            with costed_span("agent_run", prices=load_erp_prices()):
+                result = run_agent(
+                    client,
+                    erp_registry(),
+                    ErpContext(conn=conn, as_of=AS_OF),
+                    model=MODEL,
+                    system=SYSTEM,
+                    user="Quais produtos precisam de reposição hoje e quanto devo pedir de cada um?",
+                    max_steps=settings.max_steps,
+                )
 
     _ = capsys.readouterr()
     assert main(["real-4", "--file", str(path), "--full"]) == 0

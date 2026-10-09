@@ -1,7 +1,8 @@
 from dataclasses import replace
 
 from evals.fidelity import CASES, F1, run, run_case
-from validators import mislabeled_numbers
+from erp_numbers import ERP_NUMBERS
+from harness.validators import mislabeled_numbers
 
 VALUES = F1.labelled_values()
 ALIASES = {
@@ -27,15 +28,15 @@ def test_wrong_expectation_fails_the_case() -> None:
 
 
 def test_mislabeled_reports_the_field() -> None:
-    wrong = mislabeled_numbers("O estoque é 40.", VALUES, ALIASES)
+    wrong = mislabeled_numbers("O estoque é 40.", VALUES, ALIASES, ERP_NUMBERS)
     assert wrong == ["40 (next to 'on_hand', which is 3)"]
 
 
 def test_clause_split_keeps_thousands_separator_together() -> None:
     values = {"on_hand": 1250, "reorder_point": 9}
-    assert mislabeled_numbers("Estoque 1.250.", values, ALIASES) == []
+    assert mislabeled_numbers("Estoque 1.250.", values, ALIASES, ERP_NUMBERS) == []
 
 
 def test_known_gap_number_without_label_in_its_clause_is_not_judged() -> None:
     # Limite assumido: "40 itens" sem rótulo na oração passa mesmo sendo o ponto de reposição.
-    assert mislabeled_numbers("Há 40 itens, abaixo do ponto.", VALUES, ALIASES) == []
+    assert mislabeled_numbers("Há 40 itens, abaixo do ponto.", VALUES, ALIASES, ERP_NUMBERS) == []

@@ -19,7 +19,7 @@ from groq.types.chat.completion_create_params import (
     ResponseFormatResponseFormatJsonSchema,
 )
 
-from agent import (
+from harness.agent import (
     AssistantMessage,
     ChatResponse,
     Message,

@@ -7,8 +7,9 @@ from pytest import mark
 from closing import ClosingFacts
 from masking import MaskingSink, MaskPolicy, mask_span, scrub_text
 from refill_job import RefillFacts
+from erp_numbers import ERP_NUMBERS
 from harness.tracing import JsonlSink, MemorySink, Span, span, trace
-from validators import ungrounded_in
+from harness.validators import ungrounded_in
 
 CPF = "123.456.789-09"
 
@@ -91,7 +92,7 @@ def test_scrubbing_the_real_facts_keeps_them_grounded() -> None:
         original = facts.model_dump_json()
         scrubbed = mask_span(make_span(facts=original)).attributes["facts"]
         assert scrubbed == original
-        assert ungrounded_in(str(scrubbed), facts) == []
+        assert ungrounded_in(str(scrubbed), facts, ERP_NUMBERS) == []
 
 
 def test_custom_policy_decides_what_passes() -> None:
@@ -132,18 +133,19 @@ def test_the_jsonl_file_never_contains_the_personal_data(tmp_path: Path) -> None
 def test_every_attribute_the_code_emits_is_classified() -> None:
     # Allowlist falha fechado: atributo novo some do trace até alguém classificar. Este teste torna esse esquecimento
     # barulhento (vermelho) em vez de silencioso (trace sem o campo).
-    from agent import ToolCall, run_agent
+    from evals.clients import ScriptedChat, call_tool, final
+    from evals.refusal import fake_ctx, fake_registry
+    from harness.agent import run_agent
     from harness.pricing import costed_span
     from refill_job import explain
-    from tests.test_agent import ScriptedChat, _answer, _call, _ctx, _registry  # pyright: ignore[reportPrivateUsage]
     from tests.test_refill_job import FACTS, ScriptedClient, ok
 
     inner = MemorySink()
     with trace("run", MaskingSink(inner)):
         with costed_span("job", model="m", prompt_version="v1"):
             _ = explain(ScriptedClient(ok("Repor 999."), ok("Repor 250.")), FACTS, model="m")
-            chat = ScriptedChat(_call(ToolCall("c1", "echo", '{"n": 1}')), _answer("ok"))
-            _ = run_agent(chat, _registry(), _ctx(), model="m", system="s", user="u", max_steps=3)
+            chat = ScriptedChat(call_tool("sales_total"), final("ok"))
+            _ = run_agent(chat, fake_registry(), fake_ctx(), model="m", system="s", user="u", max_steps=3)
 
     # Os parâmetros do provedor vêm do `groq_client`, que os fakes acima não exercitam: emitir um span à mão com eles.
     with trace("run", MaskingSink(inner)):

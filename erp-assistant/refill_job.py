@@ -6,8 +6,9 @@ from datetime import date
 import psycopg
 from pydantic import BaseModel
 
+from erp_numbers import ERP_NUMBERS
 from harness.llm import ExtractionError, LLMClient, Usage, add_usage
-from narrate import Explanation, narrate
+from harness.narrate import Explanation, narrate
 from erp_prices import load_erp_prices
 from harness.pricing import costed_span
 from replenishment import DEFAULT_COVER_DAYS, DEFAULT_WINDOW_DAYS, low_stock
@@ -74,6 +75,7 @@ def explain(
         system=SYSTEM_PROMPT,
         values=facts.labelled_values(),
         aliases=FIELD_ALIASES,
+        reader=ERP_NUMBERS,
         model=model,
         max_attempts=max_attempts,
     )

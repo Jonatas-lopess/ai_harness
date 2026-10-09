@@ -1,13 +1,11 @@
 from collections.abc import Sequence
-from datetime import date
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import cast
 
-import psycopg
 from pydantic import BaseModel
 from pytest import raises
 
-from agent import (
+from harness.agent import (
     AssistantMessage,
     BudgetExceededError,
     ChatResponse,
@@ -18,13 +16,10 @@ from agent import (
     run_agent,
 )
 from harness.llm import InvalidOutputError, ProviderUnavailableError, TruncatedOutputError, Usage
-from erp_prices import load_erp_prices
-from harness.pricing import costed_span
+from harness.pricing import Price, PriceTable, costed_span
 from harness.tools import ToolError, ToolInput, ToolRegistry, ToolSchema, make_tool
-from erp_context import ErpContext
 from harness.tracing import MemorySink, span, trace
 
-AS_OF = date(2026, 1, 31)
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 
 
@@ -44,7 +39,14 @@ class _Pong(BaseModel):
     ok: bool
 
 
-def _registry() -> ToolRegistry[ErpContext]:
+@dataclass(frozen=True)
+class _Ctx:
+    """Contexto de teste sem banco e sem nada de ERP."""
+
+    tenant: str
+
+
+def _registry() -> ToolRegistry[_Ctx]:
     return ToolRegistry(
         [
             make_tool("echo", "Echo n.", _EchoInput, lambda _ctx, args: _EchoOutput(n=args.n)),
@@ -53,8 +55,16 @@ def _registry() -> ToolRegistry[ErpContext]:
     )
 
 
-def _ctx() -> ErpContext:
-    return ErpContext(conn=cast("psycopg.Connection", object()), as_of=AS_OF)
+def _ctx() -> _Ctx:
+    return _Ctx(tenant="t1")
+
+
+PRICES = PriceTable(
+    source="test",
+    effective_date="2026-10-04",
+    currency="USD",
+    models={"priced": Price(input_per_mtok=Decimal("0.15"), output_per_mtok=Decimal("0.60"))},
+)
 
 
 class ScriptedChat:
@@ -231,7 +241,7 @@ def test_empty_final_answer_raises():
 
 
 def test_bug_inside_a_tool_is_not_swallowed():
-    def boom(_ctx: ErpContext, _args: _NoArgs) -> BaseModel:
+    def boom(_ctx: _Ctx, _args: _NoArgs) -> BaseModel:
         raise RuntimeError("db down")
 
     registry = ToolRegistry([make_tool("boom", "Fails.", _NoArgs, boom)])
@@ -335,8 +345,8 @@ def test_llm_call_spans_carry_cost_from_the_price_table():
     client = ScriptedChat(_call(ToolCall("c1", "ping", "{}")), _answer("ok"))
     sink = MemorySink()
     with trace("job", sink):
-        with costed_span("job", prices=load_erp_prices()):
-            _ = run_agent(client, _registry(), _ctx(), model="openai/gpt-oss-120b", system="s", user="u", max_steps=5)
+        with costed_span("job", prices=PRICES):
+            _ = run_agent(client, _registry(), _ctx(), model="priced", system="s", user="u", max_steps=5)
 
     llm = [s for s in sink.traces[0].spans if s.name == "llm_call"]
     assert [s.attributes["cost"] for s in llm] == [Decimal("0.0000045")] * 2  # 10*0.15 + 5*0.60, por milhão
@@ -347,7 +357,7 @@ def test_agent_outside_a_priced_job_leaves_cost_unknown_instead_of_guessing():
     client = ScriptedChat(_call(ToolCall("c1", "ping", "{}")), _answer("ok"))
     sink = MemorySink()
     with trace("job", sink):
-        _ = run_agent(client, _registry(), _ctx(), model="openai/gpt-oss-120b", system="s", user="u", max_steps=5)
+        _ = run_agent(client, _registry(), _ctx(), model="priced", system="s", user="u", max_steps=5)
 
     llm = [s for s in sink.traces[0].spans if s.name == "llm_call"]
     assert [s.attributes["cost"] for s in llm] == [None, None]

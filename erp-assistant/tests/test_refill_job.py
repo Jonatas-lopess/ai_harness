@@ -3,7 +3,7 @@ from typing import Any, cast
 from pytest import raises
 
 from harness.llm import Completion, ProviderUnavailableError, Usage
-from narrate import MAX_COMPLETION_TOKENS, Rationale
+from harness.narrate import MAX_COMPLETION_TOKENS, Rationale
 from refill_job import RefillFacts, explain
 from harness.tracing import MemorySink, trace
 

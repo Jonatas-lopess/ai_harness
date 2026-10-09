@@ -1,7 +1,7 @@
 """Laço genérico "fatos -> texto validado": o job decide os fatos, o LLM só escreve o texto.
 
-Serve a qualquer job que narre fatos (reposição, fechamento): o que muda entre eles é o prompt,
-os fatos e os rótulos. Candidato a ir para o harness na fase 5.
+Serve a qualquer job que narre fatos (reposição, fechamento, andamentos): o que muda entre eles é o prompt,
+os fatos, os rótulos e o leitor de números (`NumberReader`), todos vindos do pack.
 """
 
 from collections.abc import Mapping, Sequence
@@ -20,11 +20,11 @@ from harness.llm import (
     parse_completion,
     with_feedback,
 )
-from harness.tracing import span
 from pydantic import BaseModel, ConfigDict
 
 from harness.pricing import usage_attributes
-from validators import mislabeled_numbers, ungrounded_in
+from harness.tracing import span
+from harness.validators import NumberReader, mislabeled_numbers, ungrounded_in
 
 MAX_COMPLETION_TOKENS = 256
 
@@ -53,6 +53,7 @@ def narrate(
     system: str,
     values: Mapping[str, int | Decimal],
     aliases: Mapping[str, Sequence[str]],
+    reader: NumberReader,
     model: str,
     max_attempts: int = 3,
 ) -> Explanation:
@@ -92,10 +93,10 @@ def narrate(
                     text = parse_completion(completion, Rationale).rationale
                     if not text.strip():
                         raise InvalidOutputError("empty rationale", completion.usage)
-                    stray = ungrounded_in(text, facts)
+                    stray = ungrounded_in(text, facts, reader)
                     if stray:
                         raise InvalidOutputError(f"numbers not present in the facts: {stray}", completion.usage)
-                    swapped = mislabeled_numbers(text, values, aliases)
+                    swapped = mislabeled_numbers(text, values, aliases, reader)
                     if swapped:
                         raise InvalidOutputError(
                             f"numbers attached to the wrong field: {swapped}", completion.usage

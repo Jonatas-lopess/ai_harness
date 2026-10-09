@@ -4,7 +4,7 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from agent import AssistantMessage, ChatResponse, Message, ToolCall
+from harness.agent import AssistantMessage, ChatResponse, Message, ToolCall
 from harness.llm import Completion, Usage
 from harness.tools import ToolSchema
 

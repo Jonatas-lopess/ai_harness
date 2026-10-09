@@ -11,9 +11,10 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from agent import AgentResult, ChatClient, run_agent
+from erp_numbers import ERP_NUMBERS
+from harness.agent import AgentResult, ChatClient, run_agent
 from harness.tools import ToolError, ToolRegistry
-from validators import ungrounded_numbers
+from harness.validators import ungrounded_numbers
 
 PROMPT_VERSION = "ask-v1"
 
@@ -68,7 +69,7 @@ def judge(result: AgentResult) -> QuestionResult:
     parsed = _parse(result.text)
     if isinstance(parsed, str):
         return QuestionResult("rejected", None, parsed, result)
-    stray = ungrounded_numbers(parsed.text, result.tool_calls)
+    stray = ungrounded_numbers(parsed.text, result.tool_calls, ERP_NUMBERS)
     if stray:
         return QuestionResult("rejected", None, f"numbers not present in tool results: {stray}", result)
     if parsed.status == "answered":

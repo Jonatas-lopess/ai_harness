@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from erp_context import ErpContext
-from agent import BudgetExceededError, ChatResponse, ToolCallRecord, run_agent
+from harness.agent import BudgetExceededError, ChatResponse, ToolCallRecord, run_agent
 from evals.clients import ScriptedChat, call_tool, final
 from evals.refusal import fake_ctx
 from harness.tools import ToolInput, ToolRegistry, make_tool

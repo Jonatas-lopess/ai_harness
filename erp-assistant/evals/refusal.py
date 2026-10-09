@@ -13,7 +13,7 @@ from typing import cast
 import psycopg
 from pydantic import BaseModel
 
-from agent import ChatResponse
+from harness.agent import ChatResponse
 from answers import Status, answer_question
 from evals.clients import ScriptedChat, call_tool, final
 from harness.tools import ToolInput, ToolRegistry, make_tool

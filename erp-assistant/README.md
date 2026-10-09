@@ -40,13 +40,14 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | `harness.pricing` (in `ai-harness/`) | cost per call and per job (`costed_span(prices=...)`) recorded in the trace; the price table comes from the pack |
 | `erp_context.py` | `ErpContext` (DB connection + `as_of`) and `connect_readonly`: what the harness hands to every ERP tool |
 | `erp_tools.py` | the ERP tools; the generic registry (`harness.tools`) lives in `ai-harness/` |
-| `agent.py` | agent loop with step budget |
+| `harness.agent` (in `ai-harness/`) | agent loop with step budget, generic in the tool context |
 | `replenishment.py`, `refill_job.py` | reorder detection and quantity (SQL and Python), rationale via LLM |
 | `closing.py`, `closing_job.py` | daily sales summary |
-| `narrate.py` | generic "facts to validated text" loop shared by both jobs |
-| `validators.py` | numbers in the text must come from the facts, attached to the right field |
+| `harness.narrate` (in `ai-harness/`) | generic "facts to validated text" loop shared by both jobs |
+| `harness.validators` (in `ai-harness/`) | numbers in the text must come from the facts, attached to the right field; reads numbers through a `NumberReader` the pack provides |
+| `erp_numbers.py` | `ERP_NUMBERS`: what counts as a number in ERP text (pt-BR/en separators, ids like `A12`) |
 | `answers.py` | on-demand questions with `STATUS: answered / insufficient_data` and refusal rules |
-| `harness.tracing` (in `ai-harness/`) | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL); `agent.py` and `narrate.py` emit spans (no-op without an active trace) |
+| `harness.tracing` (in `ai-harness/`) | trace = tree of spans with a request ID, `Protocol` sinks (memory, JSONL); `harness.agent` and `harness.narrate` emit spans (no-op without an active trace) |
 | `masking.py` | `MaskingSink`: allowlist of trace attributes, PII patterns scrubbed from free text, rest masked; `production_sink(path)` is the way to build the JSONL sink (default `traces/traces.jsonl`, git-ignored) |
 | `trace_report.py` | reads the JSONL and prints the span tree, totals and cost for one `request_id`; last trace wins with a warning, a corrupt line aborts |
 | `judge.py` | LLM-as-judge for fidelity (different model family than the generator) |
