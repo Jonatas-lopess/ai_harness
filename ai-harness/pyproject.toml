@@ -22,6 +22,7 @@ dev = [
 
 [tool.pytest]
 testpaths = ["tests"]
+pythonpath = ["examples"]
 markers = ["integration"]
 
 [tool.uv.build-backend]

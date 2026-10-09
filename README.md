@@ -27,7 +27,7 @@ Only the ERP pack exists so far, in `erp-assistant/`. The harness extraction (ph
 ## Structure
 
 ```
-ai-harness/           # domain-agnostic library, package `harness` (see below)
+ai-harness/           # domain-agnostic library, package `harness`; `examples/toy_pack` shows how to write a pack
 erp-assistant/        # ERP pack: working code, tests, evals, notes (see its README)
 docs/agents/          # issue tracker and domain-doc conventions for coding agents
 .github/workflows/    # CI: unit tests, simulated evals, typecheck (no network, no secrets)

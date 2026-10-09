@@ -1,7 +1,8 @@
 """Pack de brinquedo: um helpdesk mínimo (tickets abertos por fila), SEM nada de ERP.
 
-Existe para provar o critério da fase 5: um domínio novo usa o harness só por `harness.*`, sem editá-lo.
-Tudo aqui é o que um pack real teria que fornecer: contexto, tools, leitor de números, prompt, preços e suítes.
+É o exemplo de "como escrever um pack" (leia de cima para baixo) e a prova do critério da fase 5: um domínio novo
+usa o harness só por `harness.*`, sem editá-lo. Tudo aqui é o que um pack real teria que fornecer: contexto, tools,
+leitor de números, prompt, preços e suítes. O teste está em `tests/test_toy_pack.py`.
 """
 
 import re

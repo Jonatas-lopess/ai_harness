@@ -154,7 +154,7 @@ def test_the_packs_suite_runs_on_the_harness_runner(tmp_path: Path, capsys: Capt
 
 def test_the_toy_pack_imports_only_the_harness_pydantic_and_the_standard_library() -> None:
     allowed = set(sys.stdlib_module_names) | {"pydantic", "harness"}
-    tree = ast.parse((Path(__file__).parent / "toy_pack" / "pack.py").read_text())
+    tree = ast.parse((Path(__file__).parent.parent / "examples" / "toy_pack" / "pack.py").read_text())
     roots = {
         n.split(".")[0]
         for node in ast.walk(tree)
