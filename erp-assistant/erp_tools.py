@@ -3,12 +3,12 @@
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from harness.tools import Tool, ToolError, ToolInput, ToolRegistry, make_tool
 from psycopg.rows import class_row
 from pydantic import BaseModel, Field
 
-from replenishment import low_stock as detect_low_stock
-from harness.tools import Tool, ToolError, ToolInput, ToolRegistry, make_tool
 from erp_context import ErpContext
+from replenishment import low_stock as detect_low_stock
 
 MAX_LOW_STOCK_ITEMS = 50
 MAX_SALES_DAYS = 90
