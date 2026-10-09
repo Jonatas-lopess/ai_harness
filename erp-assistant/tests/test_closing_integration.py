@@ -3,7 +3,7 @@ from datetime import date
 from pytest import mark
 
 from closing_job import run_closing_job
-from groq_client import GroqClient
+from harness.providers.groq import GroqClient
 from settings import get_settings
 from erp_context import connect_readonly
 

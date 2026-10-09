@@ -1,7 +1,12 @@
+import asyncio
 from typing import Any, NoReturn
 
-import httpx
-from groq import (
+from pytest import importorskip
+
+importorskip("groq", reason="precisa do extra: uv sync --extra groq")
+
+import httpx  # noqa: E402
+from groq import (  # noqa: E402
     APIConnectionError,
     APITimeoutError,
     BadRequestError,
@@ -11,7 +16,7 @@ from groq import (
 from pytest import MonkeyPatch, mark, raises
 
 from harness.llm import ExtractionError, InvalidOutputError, ProviderUnavailableError
-from groq_client import GroqClient
+from harness.providers.groq import AsyncGroqClient, GroqClient
 
 
 def bad_request(code: str) -> BadRequestError:
@@ -135,3 +140,22 @@ def test_client_runs_the_same_without_an_active_trace(monkeypatch: MonkeyPatch) 
 
     with raises(BadRequestError):
         complete(client)
+
+
+def test_async_groq_client_translates_rate_limit(monkeypatch: MonkeyPatch) -> None:
+    client = AsyncGroqClient("gsk_fake")
+    error = RateLimitError(
+        "boom",
+        response=httpx.Response(429, request=httpx.Request("POST", "http://test")),
+        body=None,
+    )
+
+    async def fail(**_kwargs: Any) -> NoReturn:  # pyright: ignore[reportExplicitAny, reportAny]
+        raise error
+
+    monkeypatch.setattr(client._client.chat.completions, "create", fail)  # pyright: ignore[reportPrivateUsage]
+
+    with raises(ProviderUnavailableError):
+        _ = asyncio.run(
+            client.complete(model="m", system="s", user="u", response_schema={}, max_completion_tokens=10)
+        )

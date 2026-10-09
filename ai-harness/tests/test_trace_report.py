@@ -4,9 +4,9 @@ from typing import Literal
 
 from pytest import CaptureFixture, raises
 
-from masking import production_sink
+from harness.masking import production_sink
 from harness.pricing import costed_span
-from trace_report import CorruptTraceLine, find_traces, main, render
+from harness.trace_report import CorruptTraceLine, find_traces, main, render
 from harness.tracing import JsonlSink, Span, Trace, span, trace
 
 
@@ -35,7 +35,7 @@ def _sample(trace_id: str = "req-1", cost: str | None = "0.0002") -> Trace:
     return Trace(
         trace_id,
         [
-            _span("a", None, "refill_job", trace_id=trace_id, model="m"),
+            _span("a", None, "job", trace_id=trace_id, model="m"),
             _span("b", "a", "narrate", trace_id=trace_id, outcome="accepted", attempts=1),
             call,
             _span("d", "b", "validate", trace_id=trace_id, status="error", error="ValueError: 7 não está nos fatos"),
@@ -57,7 +57,7 @@ def test_render_rebuilds_the_tree_from_parent_ids(tmp_path: Path) -> None:
     lines = render(hit.trace).splitlines()
 
     assert lines[0] == "request_id=req-1  1 chamada(s) ao LLM, 100→20 tokens, custo=0.0002 (completo)"
-    assert lines[1] == "refill_job  ok  10 ms  model=m"
+    assert lines[1] == "job  ok  10 ms  model=m"
     assert lines[2] == "└─ narrate  ok  10 ms  attempts=1 outcome=accepted"
     assert lines[3] == "   ├─ llm_call  ok  10 ms  step=1 prompt_tokens=100 completion_tokens=20 cost=0.0002"
     assert lines[4] == "   └─ validate  error  ERRO  10 ms"
@@ -160,7 +160,7 @@ def test_end_to_end_production_sink_then_report_without_personal_data(tmp_path: 
     path = tmp_path / "t.jsonl"
 
     with trace("job", production_sink(path), request_id="e2e"):
-        with costed_span("refill_job", model="m", prompt_version="v1"):
+        with costed_span("job", model="m", prompt_version="v1"):
             with span("llm_call", step=1, prompt_tokens=10, completion_tokens=5, cost=Decimal("0.001"), content="CPF 123.456.789-09"):
                 pass
 
@@ -180,3 +180,20 @@ def test_masked_cost_counts_as_unknown_not_complete(tmp_path: Path) -> None:
     out = render(hit.trace)
 
     assert "custo=0 (parcial: 1 chamada(s) sem preço)" in out
+
+
+def test_without_a_default_file_the_flag_is_required(capsys: CaptureFixture[str]) -> None:
+    # Quem não é um pack com caminho próprio precisa dizer onde estão os traces: nada de caminho escondido.
+    with raises(SystemExit) as info:
+        _ = main(["req-1"])
+
+    assert info.value.code == 2
+    assert "--file" in capsys.readouterr().err
+
+
+def test_the_pack_default_file_is_used_when_the_flag_is_missing(tmp_path: Path) -> None:
+    path = tmp_path / "t.jsonl"
+    with trace("job", JsonlSink(path), request_id="req-d"):
+        pass
+
+    assert main(["req-d"], default_file=path) == 0

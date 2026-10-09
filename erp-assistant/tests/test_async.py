@@ -2,13 +2,10 @@ import asyncio
 import time
 from typing import Any, NoReturn
 
-import httpx
-from groq import RateLimitError
-from pytest import MonkeyPatch, raises
+from pytest import raises
 
 from harness.llm import Completion, InvalidOutputError, ProviderUnavailableError, Usage
 from extract import ExtractionResult, StockMessage, aextract_with_retry, extract_many
-from groq_client import AsyncGroqClient
 
 USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 GOOD = Completion('{"product_name": "Parafuso", "stock_level": 40}', "stop", usage=USAGE)
@@ -109,22 +106,3 @@ def test_extract_many_returns_failure_as_value_and_keeps_order() -> None:
 def test_extract_many_rejects_zero_concurrency() -> None:
     with raises(ValueError):
         _ = asyncio.run(extract_many(AsyncScriptedClient(), ["a"], model="m", max_concurrency=0))
-
-
-def test_async_groq_client_translates_rate_limit(monkeypatch: MonkeyPatch) -> None:
-    client = AsyncGroqClient("gsk_fake")
-    error = RateLimitError(
-        "boom",
-        response=httpx.Response(429, request=httpx.Request("POST", "http://test")),
-        body=None,
-    )
-
-    async def fail(**_kwargs: Any) -> NoReturn:  # pyright: ignore[reportExplicitAny, reportAny]
-        raise error
-
-    monkeypatch.setattr(client._client.chat.completions, "create", fail)  # pyright: ignore[reportPrivateUsage]
-
-    with raises(ProviderUnavailableError):
-        _ = asyncio.run(
-            client.complete(model="m", system="s", user="u", response_schema={}, max_completion_tokens=10)
-        )

@@ -5,8 +5,8 @@ from typing import cast
 
 from pytest import CaptureFixture, mark
 
-from groq_client import GroqClient
-from masking import production_sink
+from harness.providers.groq import GroqClient
+from harness.masking import production_sink
 from refill_job import run_refill_job
 from settings import get_settings
 from erp_context import connect_readonly

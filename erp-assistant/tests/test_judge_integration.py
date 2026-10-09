@@ -1,8 +1,8 @@
 from pytest import mark
 
 from evals.judge_calibration import GAP_EXAMPLES, LabeledExample
-from groq_client import GroqClient
-from judge import LLMJudge
+from harness.providers.groq import GroqClient
+from harness.judge import LLMJudge
 from settings import get_settings
 
 MODEL = "qwen/qwen3.8-27b"  # família diferente da do gerador (gpt-oss): reduz viés de autopreferência

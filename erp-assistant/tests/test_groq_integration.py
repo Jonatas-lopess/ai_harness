@@ -11,7 +11,7 @@ from extract import (
     extract_with_retry,
     log_run_cost,
 )
-from groq_client import AsyncGroqClient, GroqClient
+from harness.providers.groq import AsyncGroqClient, GroqClient
 from erp_prices import load_erp_prices
 from settings import get_settings
 

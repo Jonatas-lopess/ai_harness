@@ -14,7 +14,8 @@ import psycopg
 from pydantic import BaseModel
 
 from harness.agent import ChatResponse
-from answers import Status, answer_question
+from answers import answer_question
+from harness.answers import Status
 from evals.clients import ScriptedChat, call_tool, final
 from harness.tools import ToolInput, ToolRegistry, make_tool
 from erp_context import ErpContext

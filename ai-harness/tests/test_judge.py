@@ -4,7 +4,7 @@ from typing import Any, cast
 from pytest import raises
 
 from harness.llm import Completion, InvalidOutputError, ProviderUnavailableError, Usage
-from judge import SYSTEM_PROMPT, JudgeResult, LLMJudge
+from harness.judge import SYSTEM_PROMPT, JudgeResult, LLMJudge
 
 
 _USAGE = Usage(10, 5)

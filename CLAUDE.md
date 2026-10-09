@@ -30,7 +30,7 @@
 - Build order is fixed: ERP pack, then extract `ai-harness` (phase 5), then Legal against the extracted harness (phase 6). If Legal forces a harness change, ERP logic leaked into it: fix the boundary, not the harness.
 - Phases are sequential. Don't advance past a phase's "ready" criterion. Don't invent build/lint/test commands: record real ones in `erp-assistant/README.md`.
 - Real data: synthetic/public only during study. Real customer data to a model API needs a confirmed contract, retention and LGPD basis first.
-- LLM provider is Groq, behind the `LLMClient` protocol; `groq_client.py` is the only file that knows the SDK.
+- LLM provider is Groq, behind the `LLMClient` protocol; `ai-harness/src/harness/providers/groq.py` (extra `[groq]`) is the only file that knows the SDK.
 
 ## Testing conventions
 

@@ -15,7 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      # Sem o extra: o núcleo tem que funcionar sem o SDK do provedor (os testes do adaptador são pulados).
       - run: uv sync --locked
+      - run: uv run pytest
+      # Com o extra: testes do adaptador e typecheck do pacote inteiro.
+      - run: uv sync --locked --extra groq
       - run: uv run pytest
       - run: uv run basedpyright
 

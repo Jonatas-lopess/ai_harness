@@ -1,6 +1,8 @@
 from dataclasses import replace
 
-from answers import answer_question, judge
+from answers import answer_question
+from erp_numbers import ERP_NUMBERS
+from harness.answers import judge
 from harness.agent import AgentResult
 from evals.clients import ScriptedChat, call_tool, final
 from evals.refusal import CASES, FORECAST, LAST_MONTH, fake_ctx, fake_registry, run, run_case
@@ -38,7 +40,7 @@ def test_rejected_answer_never_exposes_its_text() -> None:
 def test_judge_works_on_a_finished_agent_result() -> None:
     agent = AgentResult("STATUS: insufficient_data\nSem dados.", Usage(0, 0), 1, ())
 
-    assert judge(agent).status == "insufficient_data"
+    assert judge(agent, ERP_NUMBERS).status == "insufficient_data"
 
 
 def test_known_gap_forecast_prose_after_a_real_tool_call_is_accepted() -> None:

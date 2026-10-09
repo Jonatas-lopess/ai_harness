@@ -4,7 +4,7 @@ from pytest import mark
 
 from answers import answer_question
 from erp_tools import erp_registry
-from groq_client import GroqClient
+from harness.providers.groq import GroqClient
 from settings import get_settings
 from erp_context import ErpContext, connect_readonly
 

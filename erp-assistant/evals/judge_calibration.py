@@ -19,7 +19,7 @@ from typing import Literal
 from closing import ClosingFacts
 from evals import closing, fidelity
 from harness.llm import ExtractionError, Usage, add_usage
-from judge import Judge, Verdict
+from harness.judge import Judge, Verdict
 
 MAX_FALSE_FAITHFUL_RATE = 0.10  # calibrar de novo se o modelo do juiz mudar
 
@@ -158,8 +158,8 @@ def calibrate(judge: Judge, data: Sequence[LabeledExample] | None = None) -> Rep
 
 
 def main() -> int:
-    from groq_client import GroqClient
-    from judge import LLMJudge
+    from harness.providers.groq import GroqClient
+    from harness.judge import LLMJudge
     from settings import get_settings
 
     model = "qwen/qwen3.8-27b"

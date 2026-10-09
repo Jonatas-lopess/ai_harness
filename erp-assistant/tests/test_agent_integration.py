@@ -10,11 +10,11 @@ from erp_prices import load_erp_prices
 from harness.pricing import costed_span
 from harness.agent import run_agent
 from erp_tools import erp_registry
-from groq_client import GroqClient
+from harness.providers.groq import GroqClient
 from settings import get_settings
 from erp_context import ErpContext, connect_readonly
 from trace_report import main
-from masking import MaskingSink, production_sink
+from harness.masking import MaskingSink, production_sink
 from harness.tracing import JsonlSink, trace
 from harness.validators import ungrounded_numbers
 

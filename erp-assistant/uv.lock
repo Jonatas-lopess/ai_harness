@@ -10,8 +10,17 @@ dependencies = [
     { name = "pydantic" },
 ]
 
+[package.optional-dependencies]
+groq = [
+    { name = "groq" },
+]
+
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.13.5" }]
+requires-dist = [
+    { name = "groq", marker = "extra == 'groq'", specifier = ">=1.7.0" },
+    { name = "pydantic", specifier = ">=2.13.5" },
+]
+provides-extras = ["groq"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -85,8 +94,7 @@ name = "erp-assistant"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "ai-harness" },
-    { name = "groq" },
+    { name = "ai-harness", extra = ["groq"] },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -100,8 +108,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ai-harness", editable = "../ai-harness" },
-    { name = "groq", specifier = ">=1.7.0" },
+    { name = "ai-harness", extras = ["groq"], editable = "../ai-harness" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },

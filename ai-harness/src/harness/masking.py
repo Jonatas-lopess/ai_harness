@@ -1,4 +1,4 @@
-"""Mascara o trace antes de gravar: genérico, sem nada de ERP (candidato a ir para o harness na fase 5).
+"""Mascara o trace antes de gravar: genérico, sem nada de ERP.
 
 Três níveis por chave de atributo, com allowlist (chave desconhecida é mascarada: falha fechado):
 - `keep_keys`: passa como está (números, ids, enums, nome de modelo; o que a checagem de fundamento precisa);
@@ -17,9 +17,6 @@ from pathlib import Path
 from typing import cast
 
 from harness.tracing import JsonlSink, Span, Trace, TraceSink
-
-# Fora do Git (ver .gitignore): mesmo mascarado, trace é dado de execução.
-DEFAULT_TRACE_PATH = Path(__file__).parent / "traces" / "traces.jsonl"
 
 # Do mais específico ao mais geral: CNPJ antes de CPF, para o CNPJ não ser comido em pedaços.
 PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -90,7 +87,7 @@ class MaskingSink:
         self.inner.write(Trace(trace.trace_id, [mask_span(s, self.policy) for s in trace.spans]))
 
 
-def production_sink(path: Path = DEFAULT_TRACE_PATH) -> TraceSink:
+def production_sink(path: Path) -> TraceSink:
     """O único jeito de montar o sink de gravação: JSONL sempre embrulhado pelo `MaskingSink`.
 
     Quem roda jobs chama isto em vez de `JsonlSink(...)`, então esquecer de mascarar deixa de ser possível por descuido.

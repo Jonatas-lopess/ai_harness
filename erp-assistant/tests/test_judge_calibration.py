@@ -4,7 +4,7 @@ from evals.clients import FixedClient
 from refill_job import RefillFacts, explain
 from harness.llm import ProviderUnavailableError, Usage
 from evals.judge_calibration import GAP_EXAMPLES, examples, calibrate
-from judge import JudgeResult, Verdict
+from harness.judge import JudgeResult, Verdict
 
 
 class _Constant:
