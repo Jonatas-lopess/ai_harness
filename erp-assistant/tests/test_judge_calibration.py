@@ -1,19 +1,10 @@
 from closing import ClosingFacts
 from closing_job import narrate_closing
-from evals.clients import FixedClient
+from harness.testing import FixedClient
 from refill_job import RefillFacts, explain
-from harness.llm import ProviderUnavailableError, Usage
+from harness.llm import Usage
 from evals.judge_calibration import GAP_EXAMPLES, examples, calibrate
 from harness.judge import JudgeResult, Verdict
-
-
-class _Constant:
-    def __init__(self, verdict: Verdict) -> None:
-        self._verdict: Verdict = verdict
-
-    def judge(self, facts: str, text: str) -> JudgeResult:
-        del facts, text
-        return JudgeResult(self._verdict, "", Usage(1, 1))
 
 
 class _Oracle:
@@ -25,12 +16,6 @@ class _Oracle:
     def judge(self, facts: str, text: str) -> JudgeResult:
         del facts
         return JudgeResult(self._by_text[text], "", Usage(1, 1))
-
-
-class _Down:
-    def judge(self, facts: str, text: str) -> JudgeResult:
-        del facts, text
-        raise ProviderUnavailableError("down", Usage(3, 0))
 
 
 def test_examples_have_unique_names_and_both_labels() -> None:
@@ -65,29 +50,3 @@ def test_perfect_judge_agrees_everywhere() -> None:
     assert report.agreement == 1.0
     assert report.false_faithful == report.false_unfaithful == 0
     assert report.trustworthy
-
-
-def test_judge_that_approves_everything_is_not_trustworthy() -> None:
-    report = calibrate(_Constant("faithful"))
-    assert report.false_faithful_rate == 1.0
-    assert report.false_unfaithful_rate == 0.0
-    assert not report.trustworthy
-
-
-def test_judge_that_rejects_everything_is_safe_but_useless() -> None:
-    report = calibrate(_Constant("unfaithful"))
-    assert report.false_faithful_rate == 0.0
-    assert report.false_unfaithful_rate == 1.0
-    assert report.trustworthy  # a métrica de segurança sozinha não basta: olhe os dois números
-
-
-def test_judge_failure_counts_as_a_miss_and_keeps_usage() -> None:
-    report = calibrate(_Down())
-    assert report.errors == report.total
-    assert report.false_faithful_rate == 1.0  # sem veredito não houve proteção
-    assert report.usage == Usage(3 * report.total, 0)
-
-
-def test_usage_sums_over_examples() -> None:
-    report = calibrate(_Constant("faithful"))
-    assert report.usage == Usage(report.total, report.total)

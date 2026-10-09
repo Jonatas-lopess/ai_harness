@@ -4,6 +4,8 @@ Falso "fiel" (juiz aprova texto que um humano reprovou) é o erro perigoso: deix
 código também não viu. Falso "infiel" só custa um retry ou uma revisão. Por isso a métrica que
 decide é a taxa de falso "fiel", não a concordância total.
 
+O cálculo (concordância, falso "fiel") é de `harness.calibration`; aqui ficam os exemplos rotulados e o limite.
+
 Rótulos: `golden` herda dos golden sets de fidelidade e fechamento (aceito pelo código = fiel);
 `gap` são casos que o código NÃO enxerga (lacunas documentadas no NOTES.md). Os `gap` foram
 rotulados pela IA e esperam revisão do autor. Chamada real: `python -m evals.judge_calibration`.
@@ -11,33 +13,21 @@ rotulados pela IA e esperam revisão do autor. Chamada real: `python -m evals.ju
 
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Literal
 
 from closing import ClosingFacts
 from evals import closing, fidelity
-from harness.llm import ExtractionError, Usage, add_usage
+from harness.calibration import LabeledExample, Report, summary
+from harness.calibration import calibrate as _calibrate
 from harness.judge import Judge, Verdict
 
 MAX_FALSE_FAITHFUL_RATE = 0.10  # calibrar de novo se o modelo do juiz mudar
-
-Source = Literal["golden", "gap"]
 
 # Dia 10: o número 10 entra nos fatos (a data), então "10% acima" é grounded para o código.
 DAY_10 = ClosingFacts(
     day=date(2026, 1, 10), revenue=Decimal("10950.00"), units=465, top_product="received-po"
 )
-
-
-@dataclass(frozen=True)
-class LabeledExample:
-    name: str
-    facts: str
-    text: str
-    human: Verdict
-    source: Source
 
 
 def _verdict(accepted: bool) -> Verdict:
@@ -82,79 +72,10 @@ def examples() -> tuple[LabeledExample, ...]:
     return golden + GAP_EXAMPLES
 
 
-@dataclass(frozen=True)
-class Outcome:
-    example: LabeledExample
-    judged: Verdict | None  # None = o juiz falhou (saída inválida, provedor fora)
-    reason: str
-    usage: Usage
-
-    @property
-    def agrees(self) -> bool:
-        return self.judged == self.example.human
-
-
-@dataclass(frozen=True)
-class Report:
-    outcomes: tuple[Outcome, ...]
-
-    def _count(self, human: Verdict, judged: Verdict | None) -> int:
-        return sum(o.example.human == human and o.judged == judged for o in self.outcomes)
-
-    @property
-    def total(self) -> int:
-        return len(self.outcomes)
-
-    @property
-    def agreement(self) -> float:
-        return sum(o.agrees for o in self.outcomes) / self.total
-
-    @property
-    def false_faithful(self) -> int:
-        """Humano reprovou, juiz aprovou: o erro perigoso."""
-        return self._count("unfaithful", "faithful")
-
-    @property
-    def false_unfaithful(self) -> int:
-        return self._count("faithful", "unfaithful")
-
-    @property
-    def errors(self) -> int:
-        return sum(o.judged is None for o in self.outcomes)
-
-    @property
-    def false_faithful_rate(self) -> float:
-        """Falhas de juiz contam como erro perigoso: sem veredito não houve proteção."""
-        unfaithful = [o for o in self.outcomes if o.example.human == "unfaithful"]
-        missed = sum(o.judged != "unfaithful" for o in unfaithful)
-        return missed / len(unfaithful)
-
-    @property
-    def false_unfaithful_rate(self) -> float:
-        faithful = [o for o in self.outcomes if o.example.human == "faithful"]
-        return sum(o.judged != "faithful" for o in faithful) / len(faithful)
-
-    @property
-    def usage(self) -> Usage:
-        total = Usage(0, 0)
-        for o in self.outcomes:
-            total = add_usage(total, o.usage)
-        return total
-
-    @property
-    def trustworthy(self) -> bool:
-        return self.false_faithful_rate <= MAX_FALSE_FAITHFUL_RATE
-
-
 def calibrate(judge: Judge, data: Sequence[LabeledExample] | None = None) -> Report:
-    outcomes: list[Outcome] = []
-    for ex in data if data is not None else examples():
-        try:
-            r = judge.judge(ex.facts, ex.text)
-            outcomes.append(Outcome(ex, r.verdict, r.reason, r.usage))
-        except ExtractionError as exc:
-            outcomes.append(Outcome(ex, None, f"judge failed: {exc}", exc.usage or Usage(0, 0)))
-    return Report(tuple(outcomes))
+    return _calibrate(
+        judge, data if data is not None else examples(), max_false_faithful_rate=MAX_FALSE_FAITHFUL_RATE
+    )
 
 
 def main() -> int:
@@ -173,15 +94,7 @@ def main() -> int:
     for o in report.outcomes:
         if not o.agrees:
             print(f"DISAGREE {o.example.name} [{o.example.source}] human={o.example.human} judge={o.judged}: {o.reason}")
-    print(f"model={model} examples={report.total} agreement={report.agreement:.0%} errors={report.errors}")
-    print(
-        f"false_faithful={report.false_faithful} rate={report.false_faithful_rate:.0%} (max {MAX_FALSE_FAITHFUL_RATE:.0%}) | "
-        + f"false_unfaithful={report.false_unfaithful} rate={report.false_unfaithful_rate:.0%}"
-    )
-    print(
-        f"tokens prompt={report.usage.prompt_tokens} completion={report.usage.completion_tokens} "
-        + "cost=n/d (no price registered)"
-    )
+    print(summary(report, model=model))
     return 0 if report.trustworthy else 1
 
 

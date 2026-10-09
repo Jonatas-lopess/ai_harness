@@ -53,7 +53,8 @@ CI (`.github/workflows/ci.yml` at the repo root) runs the unit tests, the simula
 | `erp_traces.py` | where the ERP writes traces (`traces/traces.jsonl`, git-ignored) |
 | `trace_report.py` | the `harness.trace_report` command with the ERP trace file as default: span tree, totals and cost for one `request_id`; last trace wins with a warning, a corrupt line aborts |
 | `harness.judge` (in `ai-harness/`) | LLM-as-judge for fidelity (different model family than the generator) |
-| `evals/` | golden sets (detection, fidelity, closing, refusal, trajectory), runner, judge calibration |
+| `evals/` | the ERP golden sets (detection, fidelity, closing, refusal, trajectory), the labeled judge examples, and the wiring to the harness runner (`python -m evals`) |
+| `harness.evals`, `harness.calibration`, `harness.testing` (in `ai-harness/`) | suite runner and history, judge-calibration math, LLM test doubles (`ScriptedChat`, `FixedClient`, ...) |
 | `NOTES.md` | per-step study notes in Portuguese: what was learned, what broke |
 
 ## Notes on the data

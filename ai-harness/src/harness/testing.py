@@ -1,4 +1,6 @@
-"""Clientes simulados dos evals."""
+"""Dublês de LLM para testes e evals de qualquer pack: respostas prontas, sem rede, sem custo.
+
+Ficam no pacote (não em `tests/`) para o ERP e o Legal os importarem em vez de cada um copiar o seu."""
 
 import json
 from collections.abc import Sequence

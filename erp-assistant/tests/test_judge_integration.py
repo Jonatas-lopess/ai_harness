@@ -1,6 +1,7 @@
 from pytest import mark
 
-from evals.judge_calibration import GAP_EXAMPLES, LabeledExample
+from evals.judge_calibration import GAP_EXAMPLES
+from harness.calibration import LabeledExample
 from harness.providers.groq import GroqClient
 from harness.judge import LLMJudge
 from settings import get_settings

@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Any, NoReturn
+from typing import Any
 
 from pytest import raises
 

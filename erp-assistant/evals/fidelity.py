@@ -7,7 +7,7 @@ texto do caso. Aprovado = `explain` aceitou o texto. Reprovado esperado = `expla
 import sys
 from dataclasses import dataclass
 
-from evals.clients import FixedClient
+from harness.testing import FixedClient
 from refill_job import RefillFacts, explain
 
 # F1: ruptura simples. F2: com pedido aberto. F3: números com separador de milhar. F4: do seed.

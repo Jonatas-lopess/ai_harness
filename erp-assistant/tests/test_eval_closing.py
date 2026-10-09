@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from closing import ClosingFacts
 from closing_job import FIELD_ALIASES, narrate_closing
-from evals.clients import FixedClient
+from harness.testing import FixedClient
 from evals.closing import CASES, FACTS, run, run_case
 from erp_numbers import ERP_NUMBERS
 from harness.validators import mislabeled_numbers

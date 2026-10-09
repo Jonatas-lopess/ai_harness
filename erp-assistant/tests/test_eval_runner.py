@@ -1,12 +1,12 @@
 import json
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import cast
 
 import pytest
 from evals import __main__ as runner
-from evals.__main__ import SUITES, Scored, run_all
+from evals.__main__ import SUITES, run_all
+from harness.evals import Scored
 
 
 @dataclass(frozen=True)
@@ -46,30 +46,6 @@ def test_main_exits_one_and_names_the_failing_case(
     assert "FAIL fidelity/wrong-number" in capsys.readouterr().out
 
 
-def test_history_entry_has_score_per_suite_and_cost() -> None:
-    outcome: dict[str, list[Scored]] = {
-        "a": [_Result(_Case("x"), True), _Result(_Case("y"), False)]
-    }
-    entry = runner.history_entry(outcome, commit="abc1234", day=date(2026, 10, 8))
-    assert entry == {
-        "date": "2026-10-08",
-        "commit": "abc1234",
-        "mode": "simulated",
-        "scores": {"a": [1, 2]},
-        "cost_usd": 0.0,
-    }
-
-
-def test_record_appends_one_json_line_per_run(tmp_path: Path) -> None:
-    path = tmp_path / "history.jsonl"
-    outcome = run_all()
-    runner.record(outcome, path)
-    runner.record(outcome, path)
-    lines = path.read_text().splitlines()
-    assert len(lines) == 2
-    assert set(cast("dict[str, object]", json.loads(lines[0]))["scores"]) == set(SUITES)  # pyright: ignore[reportArgumentType]
-
-
 def test_main_without_record_flag_does_not_write_history(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -77,3 +53,13 @@ def test_main_without_record_flag_does_not_write_history(
     monkeypatch.setattr(runner, "HISTORY_PATH", path)
     _ = runner.main([])
     assert not path.exists()
+
+
+def test_record_flag_appends_one_line_to_the_erp_history(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    path = tmp_path / "history.jsonl"
+    monkeypatch.setattr(runner, "HISTORY_PATH", path)
+
+    assert runner.main(["--record"]) == 0
+
+    [line] = path.read_text().splitlines()
+    assert set(cast("dict[str, object]", json.loads(line))["scores"]) == set(SUITES)  # pyright: ignore[reportArgumentType]

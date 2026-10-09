@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from closing import ClosingFacts
 from closing_job import narrate_closing
-from evals.clients import FixedClient
+from harness.testing import FixedClient
 
 FACTS = ClosingFacts(
     day=date(2026, 1, 20), revenue=Decimal("10950.00"), units=465, top_product="received-po"

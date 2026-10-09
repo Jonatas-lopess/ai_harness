@@ -29,7 +29,7 @@ def test_scrubbing_the_real_facts_keeps_them_grounded() -> None:
 def test_every_attribute_the_code_emits_is_classified() -> None:
     # Allowlist falha fechado: atributo novo some do trace até alguém classificar. Este teste torna esse esquecimento
     # barulhento (vermelho) em vez de silencioso (trace sem o campo).
-    from evals.clients import ScriptedChat, call_tool, final
+    from harness.testing import ScriptedChat, call_tool, final
     from evals.refusal import fake_ctx, fake_registry
     from harness.agent import run_agent
     from harness.pricing import costed_span

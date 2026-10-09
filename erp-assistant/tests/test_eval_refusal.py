@@ -4,7 +4,7 @@ from answers import answer_question
 from erp_numbers import ERP_NUMBERS
 from harness.answers import judge
 from harness.agent import AgentResult
-from evals.clients import ScriptedChat, call_tool, final
+from harness.testing import ScriptedChat, call_tool, final
 from evals.refusal import CASES, FORECAST, LAST_MONTH, fake_ctx, fake_registry, run, run_case
 from harness.llm import Usage
 
