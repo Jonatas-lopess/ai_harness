@@ -1,3 +1,6 @@
+import asyncio
+from collections.abc import Coroutine
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from pathlib import Path
 
@@ -196,3 +199,35 @@ def test_each_job_uses_its_own_table_and_a_nested_job_inherits() -> None:
         with costed_span("override", prices=newer):
             assert usage_attributes(Usage(1000, 0), "known")["prices_as_of"] == "2026-06-01"
         assert usage_attributes(Usage(1000, 0), "known")["prices_as_of"] == "2026-01-01"
+
+
+# --- concorrência -----------------------------------------------------------------------------------------------
+
+
+def _table_on(date: str) -> PriceTable:
+    return PriceTable(source="test", effective_date=date, currency="USD", models={})
+
+
+def _seen() -> object:
+    return usage_attributes(Usage(1, 1), "m")["prices_as_of"]
+
+
+def test_concurrent_async_jobs_do_not_see_each_others_table() -> None:
+    async def job(date: str) -> tuple[object, object]:
+        with costed_span("job", prices=_table_on(date)):
+            await asyncio.sleep(0.01)  # o outro job roda (e define a sua tabela) durante esta espera
+            return _seen(), await asyncio.to_thread(_seen)
+
+    results = asyncio.run(_both(job("A"), job("B")))
+
+    assert results == [("A", "A"), ("B", "B")]  # `to_thread` copia o contexto: a thread vê a tabela do seu job
+
+
+def test_a_plain_thread_pool_does_not_inherit_the_table() -> None:
+    # Limite conhecido: `executor.submit` não copia o contexto, então o custo sai `None` (visível), não do job errado.
+    with costed_span("job", prices=_table_on("A")), ThreadPoolExecutor(1) as pool:
+        assert pool.submit(_seen).result() is None
+
+
+async def _both(a: Coroutine[None, None, tuple[object, object]], b: Coroutine[None, None, tuple[object, object]]):
+    return await asyncio.gather(a, b)
