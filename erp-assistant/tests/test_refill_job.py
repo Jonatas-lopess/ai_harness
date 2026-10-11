@@ -1,9 +1,10 @@
-from typing import Any, cast
+from typing import cast
 
 from pytest import raises
 
 from harness.llm import Completion, ProviderUnavailableError, Usage
 from harness.narrate import MAX_COMPLETION_TOKENS, Rationale
+from harness.testing import ScriptedClient
 from refill_job import RefillFacts, explain
 from harness.tracing import MemorySink, trace
 
@@ -11,21 +12,6 @@ USAGE = Usage(prompt_tokens=10, completion_tokens=5)
 FACTS = RefillFacts(
     product_id=1, name="Parafuso", on_hand=3, open_po_qty=0, reorder_point=40, suggested_qty=250
 )
-
-
-class ScriptedClient:
-    """Devolve uma resposta por chamada, na ordem; guarda os argumentos de cada chamada."""
-
-    def __init__(self, *completions: Completion | Exception) -> None:
-        self.completions: list[Completion | Exception] = list(completions)
-        self.calls: list[dict[str, Any]] = []  # pyright: ignore[reportExplicitAny]
-
-    def complete(self, **kwargs: Any) -> Completion:  # pyright: ignore[reportExplicitAny, reportAny]
-        self.calls.append(kwargs)
-        nxt = self.completions.pop(0)
-        if isinstance(nxt, Exception):
-            raise nxt
-        return nxt
 
 
 def ok(text: str) -> Completion:

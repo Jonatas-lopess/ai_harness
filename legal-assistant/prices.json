@@ -1,0 +1,11 @@
+{
+  "source": "https://console.groq.com/docs/model/openai/gpt-oss-120b",
+  "effective_date": "2026-10-04",
+  "currency": "USD",
+  "models": {
+    "openai/gpt-oss-120b": {
+      "input_per_mtok": "0.15",
+      "output_per_mtok": "0.60"
+    }
+  }
+}

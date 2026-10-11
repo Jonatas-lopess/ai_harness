@@ -21,6 +21,21 @@ class FixedClient:
         return Completion(json.dumps({"rationale": self.text}), "stop", usage=Usage(0, 0))
 
 
+class ScriptedClient:
+    """Cliente simulado: uma resposta (ou exceção) por chamada, na ordem; guarda os argumentos de cada chamada."""
+
+    def __init__(self, *completions: Completion | Exception) -> None:
+        self.completions: list[Completion | Exception] = list(completions)
+        self.calls: list[dict[str, Any]] = []  # pyright: ignore[reportExplicitAny]
+
+    def complete(self, **kwargs: Any) -> Completion:  # pyright: ignore[reportExplicitAny, reportAny]
+        self.calls.append(kwargs)
+        nxt = self.completions.pop(0)
+        if isinstance(nxt, Exception):
+            raise nxt
+        return nxt
+
+
 class ScriptedChat:
     """Agente simulado: devolve uma resposta por volta, na ordem. Sem tool calls = resposta final."""
 

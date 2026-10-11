@@ -34,7 +34,8 @@ def test_every_attribute_the_code_emits_is_classified() -> None:
     from harness.agent import run_agent
     from harness.pricing import costed_span
     from refill_job import explain
-    from tests.test_refill_job import FACTS, ScriptedClient, ok
+    from harness.testing import ScriptedClient
+    from tests.test_refill_job import FACTS, ok
 
     inner = MemorySink()
     with trace("run", MaskingSink(inner)):

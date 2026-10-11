@@ -22,9 +22,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = ["integration"]
 
-[tool.basedpyright]
-venvPath = "."
-venv = ".venv"
-
 [tool.uv.sources]
 ai-harness = { path = "../ai-harness", editable = true }

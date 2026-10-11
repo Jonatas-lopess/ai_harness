@@ -1,4 +1,5 @@
 from datetime import date
+from typing import cast
 
 import psycopg
 from harness.tools import ToolError, ToolRegistry
@@ -31,12 +32,13 @@ def _refs(output: BaseModel) -> tuple[list[str], list[str]]:
 def test_the_model_cannot_choose_the_user(registry: ToolRegistry[LegalContext]) -> None:
     (schema,) = registry.schemas()
 
-    assert set(schema["parameters"]["properties"]) == {"days"}  # pyright: ignore[reportIndexIssue, reportArgumentType]
+    properties = cast(dict[str, object], schema["parameters"]["properties"])
+    assert set(properties) == {"days"}
 
 
 def test_the_context_has_no_default_user() -> None:
     with raises(TypeError, match="user_id"):
-        _ = LegalContext(conn=None, as_of=AS_OF)  # pyright: ignore[reportArgumentType, reportCallIssue]
+        _ = LegalContext(conn=None, as_of=AS_OF)  # pyright: ignore[reportCallIssue]
 
 
 def test_the_ref_is_built_by_code_from_the_row_id() -> None:
@@ -84,7 +86,8 @@ def test_each_user_sees_only_their_matters(registry: ToolRegistry[LegalContext],
     bruno = LegalContext(conn=ctx.conn, as_of=AS_OF, user_id="bruno")
 
     assert _refs(registry.call("upcoming_deadlines", bruno, {"days": 30})) == ([], ["deadline:5"])
-    assert "deadline:5" not in sum(_refs(registry.call("upcoming_deadlines", ctx, {"days": 90})), [])
+    overdue, upcoming = _refs(registry.call("upcoming_deadlines", ctx, {"days": 90}))
+    assert "deadline:5" not in overdue + upcoming
 
 
 @mark.integration

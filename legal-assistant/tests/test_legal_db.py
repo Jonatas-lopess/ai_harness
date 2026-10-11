@@ -35,8 +35,8 @@ def test_overdue_deadline_still_open(conn: psycopg.Connection) -> None:
 @mark.integration
 def test_matter_without_events(conn: psycopg.Connection) -> None:
     rows = conn.execute(
-        "SELECT m.id FROM matters m LEFT JOIN events e ON e.matter_id = m.id "
-        "WHERE e.id IS NULL AND m.responsible_user = 'ana'"
+        "SELECT m.id FROM matters m LEFT JOIN events e ON e.matter_id = m.id"
+        + " WHERE e.id IS NULL AND m.responsible_user = 'ana'"
     ).fetchall()
     assert len(rows) == 1
 

@@ -8,7 +8,7 @@ from closing import closing_facts
 from closing_job import PROMPT_VERSION, run_closing_job
 from harness.llm import Completion, Usage
 from settings import get_settings
-from tests.test_refill_job import ScriptedClient
+from harness.testing import ScriptedClient
 from erp_context import connect_readonly
 from harness.tracing import MemorySink, trace
 

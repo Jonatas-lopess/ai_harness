@@ -4,7 +4,7 @@ Legal pack of the ai-harness study project: a daily digest of deadlines and dock
 
 Own database, credentials and deploy; shares only code with the ERP pack, via `ai-harness`. Synthetic data only.
 
-No job yet: this is the skeleton (schema, seed with traps, settings). The jobs come step by step (see `../.scratch/phase-6-legal/notes.md` and the study notes).
+The digest job covers deadlines (one `narrate` call per row, sequential); docket events, the on-demand questions and tracing come step by step (study notes: `../erp-assistant/NOTES.md`, "Fase 6").
 
 ## Setup
 
@@ -21,10 +21,21 @@ uv sync
 | What | Command |
 | --- | --- |
 | Unit tests (no network, no Docker) | `uv run pytest -m "not integration"` |
-| Seed tests (need the Postgres above) | `uv run pytest -m integration` |
-| Typecheck (must stay at 0 errors, 0 warnings) | `uv run basedpyright` |
+| Tests that need the Postgres above (seed, tools, job with a fake model) | `uv run pytest -m integration --deselect tests/test_legal_digest_integration.py` |
+| Real Groq call (uses free-tier quota; run only when verifying new model behavior) | `uv run pytest tests/test_legal_digest_integration.py -s` |
+| Typecheck (must stay at 0 errors, 0 warnings; uses this folder's own `pyrightconfig.json`, not the repo root's) | `uv run basedpyright` |
 
 CI runs only the unit tests and the typecheck, like the ERP.
+
+## Layout
+
+| File | Role |
+| --- | --- |
+| `legal_context.py` | `LegalContext(conn, as_of, user_id)` (no default for the user) and `connect_readonly` |
+| `legal_tools.py` | `upcoming_deadlines(days)`: `overdue` and `upcoming` apart, filtered by the context's user; `source_ref` built by code |
+| `legal_tokens.py` | what counts as a value in Legal text: dates (`date`), case numbers (`str`), integers; composed by the pack |
+| `legal_digest.py` | `DeadlineFacts` (no ids), `build_digest` (one `narrate` per row; a rejected sentence degrades to the record data plus a warning), `run_digest_job` |
+| `legal_prices.py`, `prices.json` | the Legal's own price table |
 
 ## The seed ("today" is `as_of = 2026-03-10`)
 

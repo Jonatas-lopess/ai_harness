@@ -1,8 +1,10 @@
 """Tools do pack Legal: somente leitura. Toda data vem do registro; o `source_ref` é montado pelo código."""
 
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import date, timedelta
 
 from harness.tools import Tool, ToolInput, ToolRegistry, make_tool
+from psycopg.rows import class_row
 from pydantic import BaseModel, Field
 
 from legal_context import LegalContext
@@ -40,6 +42,15 @@ class UpcomingDeadlinesOutput(BaseModel):
     upcoming: list[DeadlineItem]
 
 
+@dataclass(frozen=True)
+class _DeadlineRow:
+    id: int
+    matter_id: int
+    case_number: str
+    kind: str
+    due_date: date
+
+
 _DEADLINES_UP_TO = """
     SELECT d.id, d.matter_id, m.case_number, d.kind, d.due_date
     FROM deadlines d
@@ -53,24 +64,22 @@ _DEADLINES_UP_TO = """
 
 def _upcoming_deadlines(ctx: LegalContext, args: UpcomingDeadlinesInput) -> BaseModel:
     horizon = ctx.as_of + timedelta(days=args.days)
-    rows = ctx.conn.execute(_DEADLINES_UP_TO, (ctx.user_id, horizon)).fetchall()
-    items = [
-        (
-            due_date,
-            DeadlineItem(
-                source_ref=deadline_ref(deadline_id),
-                matter_id=matter_id,
-                case_number=case_number,
-                kind=kind,
-                due_date=due_date.isoformat(),
-            ),
-        )
-        for deadline_id, matter_id, case_number, kind, due_date in rows
-    ]
+    with ctx.conn.cursor(row_factory=class_row(_DeadlineRow)) as cur:
+        rows = cur.execute(_DEADLINES_UP_TO, (ctx.user_id, horizon)).fetchall()
     # Prazo vencido e ainda aberto nunca some: a tool o devolve sempre, em lista própria.
     return UpcomingDeadlinesOutput(
-        overdue=[item for due, item in items if due < ctx.as_of],
-        upcoming=[item for due, item in items if due >= ctx.as_of],
+        overdue=[_item(r) for r in rows if r.due_date < ctx.as_of],
+        upcoming=[_item(r) for r in rows if r.due_date >= ctx.as_of],
+    )
+
+
+def _item(row: _DeadlineRow) -> DeadlineItem:
+    return DeadlineItem(
+        source_ref=deadline_ref(row.id),
+        matter_id=row.matter_id,
+        case_number=row.case_number,
+        kind=row.kind,
+        due_date=row.due_date.isoformat(),
     )
 
 
