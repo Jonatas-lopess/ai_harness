@@ -4,7 +4,7 @@ Legal pack of the ai-harness study project: a daily digest of deadlines and dock
 
 Own database, credentials and deploy; shares only code with the ERP pack, via `ai-harness`. Synthetic data only.
 
-The digest job covers deadlines (one `narrate` call per row, sequential); docket events, the on-demand questions and tracing come step by step (study notes: `../erp-assistant/NOTES.md`, "Fase 6").
+The digest job covers deadlines and docket events (one `narrate` call per row, sequential; a matter with no event in the window gets a fixed line written by the code, no model call); the on-demand questions and tracing come step by step (study notes: `../erp-assistant/NOTES.md`, "Fase 6").
 
 ## Setup
 
@@ -32,9 +32,10 @@ CI runs only the unit tests and the typecheck, like the ERP.
 | File | Role |
 | --- | --- |
 | `legal_context.py` | `LegalContext(conn, as_of, user_id)` (no default for the user) and `connect_readonly` |
-| `legal_tools.py` | `upcoming_deadlines(days)`: `overdue` and `upcoming` apart, filtered by the context's user; `source_ref` built by code |
+| `legal_tools.py` | `upcoming_deadlines(days)` (`overdue` and `upcoming` apart) and `recent_events(days)` (events plus `quiet_matters`), both filtered by the context's user; `source_ref` built by code |
 | `legal_tokens.py` | what counts as a value in Legal text: dates (`date`), case numbers (`str`), integers; composed by the pack |
-| `legal_digest.py` | `DeadlineFacts` (no ids), `build_digest` (one `narrate` per row; a rejected sentence degrades to the record data plus a warning), `run_digest_job` |
+| `legal_digest.py` | `DeadlineFacts` (no ids), `EventFacts` (the event text is untrusted third-party data), `build_digest` (one `narrate` per row; a rejected sentence degrades to the record data plus a warning), `run_digest_job` |
+| `evals/` | `fidelity` golden set (simulated model, runs in CI: `python -m evals`); by hand with the real model: `evals.real_digest` (first-attempt acceptance) and `evals.real_injection` (does the model obey an order hidden in a docket event?) |
 | `legal_prices.py`, `prices.json` | the Legal's own price table |
 
 ## The seed ("today" is `as_of = 2026-03-10`)

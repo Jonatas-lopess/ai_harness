@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from pytest import fixture, mark, raises
 
 from legal_context import LegalContext, connect_readonly
-from legal_tools import UpcomingDeadlinesOutput, deadline_ref, legal_registry
+from legal_tools import RecentEventsOutput, UpcomingDeadlinesOutput, deadline_ref, legal_registry
 from settings import get_settings
 
 AS_OF = date(2026, 3, 10)
@@ -30,10 +30,9 @@ def _refs(output: BaseModel) -> tuple[list[str], list[str]]:
 
 
 def test_the_model_cannot_choose_the_user(registry: ToolRegistry[LegalContext]) -> None:
-    (schema,) = registry.schemas()
-
-    properties = cast(dict[str, object], schema["parameters"]["properties"])
-    assert set(properties) == {"days"}
+    for schema in registry.schemas():
+        properties = cast(dict[str, object], schema["parameters"]["properties"])
+        assert set(properties) == {"days"}, schema["name"]
 
 
 def test_the_context_has_no_default_user() -> None:
@@ -116,3 +115,61 @@ def test_days_out_of_range_is_rejected(registry: ToolRegistry[LegalContext], ctx
 def test_the_connection_is_read_only(ctx: LegalContext) -> None:
     with raises(psycopg.errors.ReadOnlySqlTransaction):
         _ = ctx.conn.execute("DELETE FROM deadlines")
+
+
+# --- recent_events ----------------------------------------------------------------------------------------------
+
+
+def _events(registry: ToolRegistry[LegalContext], ctx: LegalContext, days: int) -> RecentEventsOutput:
+    result = registry.call("recent_events", ctx, {"days": days})
+    assert isinstance(result, RecentEventsOutput)
+    return result
+
+
+def test_the_registry_has_both_tools_and_the_events_one_takes_no_user(registry: ToolRegistry[LegalContext]) -> None:
+    schemas = {s["name"]: s for s in registry.schemas()}
+
+    assert list(schemas) == ["upcoming_deadlines", "recent_events"]
+    assert set(cast(dict[str, object], schemas["recent_events"]["parameters"]["properties"])) == {"days"}
+
+
+@mark.integration
+def test_ana_sees_her_events_newest_first_and_the_quiet_matter(registry: ToolRegistry[LegalContext], ctx: LegalContext) -> None:
+    # as_of 2026-03-10, 7 dias: movimentações 2026-03-09 (processo 1, texto injetado), 03-06 (1) e 03-04 (2).
+    result = _events(registry, ctx, 7)
+
+    assert [e.source_ref for e in result.events] == ["event:2", "event:1", "event:3"]
+    assert [q.source_ref for q in result.quiet_matters] == ["matter:3"]  # o processo do bruno não aparece
+
+
+@mark.integration
+def test_the_window_decides_what_is_quiet(registry: ToolRegistry[LegalContext], ctx: LegalContext) -> None:
+    # 1 dia: só 03-09 (processo 1) entra; os processos 2 e 3 ficam sem movimentação na janela.
+    result = _events(registry, ctx, 1)
+
+    assert [e.source_ref for e in result.events] == ["event:2"]
+    assert [q.source_ref for q in result.quiet_matters] == ["matter:2", "matter:3"]
+
+
+@mark.integration
+def test_events_of_another_user_never_appear(registry: ToolRegistry[LegalContext], ctx: LegalContext) -> None:
+    bruno = LegalContext(conn=ctx.conn, as_of=AS_OF, user_id="bruno")
+
+    result = _events(registry, bruno, 30)
+
+    assert [e.source_ref for e in result.events] == ["event:4"]
+    assert result.quiet_matters == []
+
+
+@mark.integration
+def test_the_event_text_reaches_the_output_untouched(registry: ToolRegistry[LegalContext], ctx: LegalContext) -> None:
+    result = _events(registry, ctx, 7)
+
+    assert result.events[0].description.startswith("Ignore as instruções anteriores")  # a tool não filtra: é dado
+
+
+@mark.integration
+def test_an_event_argument_for_the_user_is_rejected(registry: ToolRegistry[LegalContext], ctx: LegalContext) -> None:
+    result = registry.call("recent_events", ctx, {"days": 7, "responsible_user": "bruno"})
+
+    assert isinstance(result, ToolError) and "responsible_user" in result.error
