@@ -1,0 +1,30 @@
+[project]
+name = "legal-assistant"
+version = "0.1.0"
+description = "Legal pack on the ai-harness"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ai-harness[groq]",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+]
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.40.1",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["integration"]
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+
+[tool.uv.sources]
+ai-harness = { path = "../ai-harness", editable = true }
