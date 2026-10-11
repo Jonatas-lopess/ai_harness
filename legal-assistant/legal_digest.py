@@ -4,6 +4,8 @@ Um item = uma linha do registro = uma chamada `narrate` com os fatos só daquela
 ser a daquela linha (`ungrounded_in` já garante), e a ligação frase-ref é estrutural: o modelo nunca escreve ref.
 """
 
+import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
@@ -12,6 +14,7 @@ from harness.llm import LLMClient, Usage, add_usage
 from harness.narrate import narrate
 from harness.pricing import costed_span
 from harness.tools import ToolError
+from harness.tracing import span
 from pydantic import BaseModel
 
 from legal_context import LegalContext
@@ -116,22 +119,52 @@ def _facts(item: DeadlineItem, situation: Situation) -> DeadlineFacts:
     )
 
 
+def _deadline_entry(
+    client: LLMClient, row: DeadlineItem, situation: Situation, *, model: str, max_attempts: int
+) -> tuple[DigestItem, Usage]:
+    facts = _facts(row, situation)
+    with span(f"digest_item {row.source_ref}"):  # liga os spans narrate/llm_call à linha do registro
+        explanation = narrate(
+            client,
+            facts,
+            system=SYSTEM_PROMPT,
+            values={},  # rótulo trocado (`mislabeled_tokens`) não se aplica: uma data só por linha, nada a trocar
+            aliases={},
+            reader=LEGAL_TOKENS,
+            model=model,
+            max_attempts=max_attempts,
+            required=[facts.kind],  # o tipo do prazo é palavra, não número: só esta checagem o confere
+        )
+    item = DigestItem(
+        source_ref=row.source_ref,
+        situation=situation,
+        kind=row.kind,
+        due_date=row.due_date,
+        case_number=row.case_number,
+        sentence=explanation.rationale,
+        warning=None if explanation.rationale else f"frase não validada: {explanation.error}",
+        attempts=explanation.attempts,
+    )
+    return item, explanation.usage
+
+
 def _event_entry(client: LLMClient, event: EventItem, *, model: str, max_attempts: int) -> tuple[DigestEvent, Usage]:
     facts = EventFacts(
         occurred_on=date.fromisoformat(event.occurred_on),
         case_number=event.case_number,
         description=event.description,
     )
-    explanation = narrate(
-        client,
-        facts,
-        system=EVENT_SYSTEM_PROMPT,
-        values={},
-        aliases={},
-        reader=LEGAL_TOKENS,
-        model=model,
-        max_attempts=max_attempts,
-    )
+    with span(f"digest_item {event.source_ref}"):
+        explanation = narrate(
+            client,
+            facts,
+            system=EVENT_SYSTEM_PROMPT,
+            values={},
+            aliases={},
+            reader=LEGAL_TOKENS,
+            model=model,
+            max_attempts=max_attempts,
+        )
     entry = DigestEvent(
         source_ref=event.source_ref,
         case_number=event.case_number,
@@ -154,35 +187,12 @@ def build_digest(
     """Vencidos primeiro, depois os andamentos. Frase reprovada não derruba o digest: o item sai com os dados do registro e um aviso."""
     overdue: list[tuple[DeadlineItem, Situation]] = [(i, "overdue") for i in deadlines.overdue]
     upcoming: list[tuple[DeadlineItem, Situation]] = [(i, "upcoming") for i in deadlines.upcoming]
-    rows = overdue + upcoming
     total = Usage(0, 0)
     items: list[DigestItem] = []
-    for row, situation in rows:
-        facts = _facts(row, situation)
-        explanation = narrate(
-            client,
-            facts,
-            system=SYSTEM_PROMPT,
-            values={},  # rótulo trocado (`mislabeled_tokens`) não se aplica: uma data só por linha, nada a trocar
-            aliases={},
-            reader=LEGAL_TOKENS,
-            model=model,
-            max_attempts=max_attempts,
-            required=[facts.kind],  # o tipo do prazo é palavra, não número: só esta checagem o confere
-        )
-        total = add_usage(total, explanation.usage)
-        items.append(
-            DigestItem(
-                source_ref=row.source_ref,
-                situation=situation,
-                kind=row.kind,
-                due_date=row.due_date,
-                case_number=row.case_number,
-                sentence=explanation.rationale,
-                warning=None if explanation.rationale else f"frase não validada: {explanation.error}",
-                attempts=explanation.attempts,
-            )
-        )
+    for row, situation in overdue + upcoming:
+        item, usage = _deadline_entry(client, row, situation, model=model, max_attempts=max_attempts)
+        total = add_usage(total, usage)
+        items.append(item)
     entries: list[DigestEvent] = []
     for event in events.events if events else []:
         entry, usage = _event_entry(client, event, model=model, max_attempts=max_attempts)
@@ -190,6 +200,16 @@ def build_digest(
         entries.append(entry)
     quiet = events.quiet_matters if events else []
     return Digest(items, total, PROMPT_VERSION, model, entries, quiet)
+
+
+def _read_tool(ctx: LegalContext, name: str, args: Mapping[str, object]) -> BaseModel:
+    """Lê uma tool como o agente faria: o span `tool` (nome, argumentos, resultado) é o que o trace precisa para auditar."""
+    with span("tool", name=name, arguments=json.dumps(args)) as tool_span:
+        result = legal_registry().call(name, ctx, args)
+        tool_span.set(result=result.model_dump_json(), tool_error=isinstance(result, ToolError))
+    if isinstance(result, ToolError):
+        raise RuntimeError(f"{name} failed: {result.error}")
+    return result
 
 
 def run_digest_job(
@@ -202,12 +222,7 @@ def run_digest_job(
     max_attempts: int = 3,
 ) -> Digest:
     with costed_span("digest_job", prices=load_legal_prices(), model=model, prompt_version=PROMPT_VERSION):
-        result = legal_registry().call("upcoming_deadlines", ctx, {"days": days})
-        if isinstance(result, ToolError):
-            raise RuntimeError(f"upcoming_deadlines failed: {result.error}")
-        assert isinstance(result, UpcomingDeadlinesOutput)
-        recent = legal_registry().call("recent_events", ctx, {"days": events_days})
-        if isinstance(recent, ToolError):
-            raise RuntimeError(f"recent_events failed: {recent.error}")
-        assert isinstance(recent, RecentEventsOutput)
-        return build_digest(client, result, recent, model=model, max_attempts=max_attempts)
+        deadlines = _read_tool(ctx, "upcoming_deadlines", {"days": days})
+        recent = _read_tool(ctx, "recent_events", {"days": events_days})
+        assert isinstance(deadlines, UpcomingDeadlinesOutput) and isinstance(recent, RecentEventsOutput)
+        return build_digest(client, deadlines, recent, model=model, max_attempts=max_attempts)

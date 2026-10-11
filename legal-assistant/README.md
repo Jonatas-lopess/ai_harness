@@ -23,6 +23,7 @@ uv sync
 | Unit tests (no network, no Docker) | `uv run pytest -m "not integration"` |
 | Tests that need the Postgres above (seed, tools, job with a fake model) | `uv run pytest -m integration --deselect tests/test_legal_digest_integration.py` |
 | Real Groq call (uses free-tier quota; run only when verifying new model behavior) | `uv run pytest tests/test_legal_digest_integration.py -s` |
+| Rebuild the story of one run from its request ID (`--full` adds prompt and results) | `uv run python -m trace_report <request_id> [--file traces.jsonl] [--full]` |
 | Typecheck (must stay at 0 errors, 0 warnings; uses this folder's own `pyrightconfig.json`, not the repo root's) | `uv run basedpyright` |
 
 CI runs only the unit tests and the typecheck, like the ERP.
@@ -37,6 +38,11 @@ CI runs only the unit tests and the typecheck, like the ERP.
 | `legal_digest.py` | `DeadlineFacts` (no ids), `EventFacts` (the event text is untrusted third-party data), `build_digest` (one `narrate` per row; a rejected sentence degrades to the record data plus a warning), `run_digest_job` |
 | `evals/` | `fidelity` golden set (simulated model, runs in CI: `python -m evals`); by hand with the real model: `evals.real_digest` (first-attempt acceptance) and `evals.real_injection` (does the model obey an order hidden in a docket event?) |
 | `legal_prices.py`, `prices.json` | the Legal's own price table |
+| `legal_traces.py`, `trace_report.py` | where the Legal writes traces (`traces/traces.jsonl`, git-ignored, never the ERP's file) and the command that reads them |
+
+## Traces and client data
+
+Wrap a job in `trace("digest", legal_trace_sink(), request_id=...)`. The trace holds what explains a sentence: the tool calls and results, one `digest_item <source_ref>` span per row with the facts sent to the model, the model's answer, retries and cost. That includes client data (case numbers, the text of docket events), so the sink is always the masking one: CPF, CNPJ, e-mail and phone patterns are replaced, unknown attributes are masked. **Person names are not masked** (known limit, tested). With synthetic data this is fine; with real data, define retention and access first and a per-origin mask policy (phase 8).
 
 ## The seed ("today" is `as_of = 2026-03-10`)
 
