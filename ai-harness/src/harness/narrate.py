@@ -4,6 +4,7 @@ Serve a qualquer job que narre fatos (reposição, fechamento, andamentos): o qu
 os fatos, os rótulos e o leitor de números (`TokenReader`), todos vindos do pack.
 """
 
+import unicodedata
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import ClassVar
@@ -37,6 +38,18 @@ class Rationale(BaseModel):
 
 
 
+def _fold(text: str) -> str:
+    """Sem caixa e sem acento: "Contestação" e "contestacao" são o mesmo termo."""
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def missing_terms(text: str, required: Sequence[str]) -> list[str]:
+    """Termos de `required` que o texto não menciona. Lista vazia = aprovado."""
+    folded = _fold(text)
+    return [term for term in required if _fold(term) not in folded]
+
+
 @dataclass(frozen=True)
 class Explanation:
     rationale: str | None
@@ -55,8 +68,13 @@ def narrate(
     reader: TokenReader,
     model: str,
     max_attempts: int = 3,
+    required: Sequence[str] = (),
 ) -> Explanation:
-    """Pede o texto sobre `facts`. Número sem origem ou no campo errado volta ao modelo com o erro."""
+    """Pede o texto sobre `facts`. Número sem origem ou no campo errado volta ao modelo com o erro.
+
+    `required`: termos que o texto precisa mencionar (ex.: o tipo do prazo). Os validadores de número não leem
+    palavras, então um rótulo trocado ("recurso" no lugar de "contestação") só é pego aqui. Vazio = não confere.
+    """
     if max_attempts < 1:
         raise ValueError("max_attempts must be >= 1")
 
@@ -100,6 +118,9 @@ def narrate(
                         raise InvalidOutputError(
                             f"numbers attached to the wrong field: {swapped}", completion.usage
                         )
+                    absent = missing_terms(text, required)
+                    if absent:
+                        raise InvalidOutputError(f"required terms missing from the text: {absent}", completion.usage)
             except InvalidOutputError as exc:
                 last_error = exc
                 user = with_feedback(base, exc)

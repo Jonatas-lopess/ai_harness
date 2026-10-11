@@ -46,4 +46,5 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked
       - run: uv run pytest -m "not integration"
+      - run: uv run python -m evals
       - run: uv run basedpyright

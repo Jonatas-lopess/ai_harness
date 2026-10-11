@@ -76,3 +76,18 @@ def test_a_quantity_never_grounds_a_case_number() -> None:
     digits = int(CASE.replace("-", "").replace(".", ""))
 
     assert ungrounded_in(f"Processo {CASE}.", _Quantity(total=digits), LEGAL_TOKENS) == [CASE]
+
+
+def test_a_written_out_month_is_the_same_date_as_the_numeric_form() -> None:
+    assert ungrounded_in("Vence em 13 de março de 2026.", FACTS, LEGAL_TOKENS) == []
+    assert ungrounded_in("Vence em 13 DE MARCO DE 2026.", FACTS, LEGAL_TOKENS) == []
+
+
+def test_a_wrong_or_impossible_written_out_date_is_rejected() -> None:
+    assert ungrounded_in("Vence em 14 de março de 2026.", FACTS, LEGAL_TOKENS) == ["14 de março de 2026"]
+    assert ungrounded_in("Vence em 31 de fevereiro de 2026.", FACTS, LEGAL_TOKENS) == ["31 de fevereiro de 2026"]
+    assert ungrounded_in("Vence em 13 de março de 2027.", FACTS, LEGAL_TOKENS) == ["13 de março de 2027"]
+
+
+def test_a_written_out_date_is_one_token_not_its_pieces() -> None:
+    assert [t.text for t in LEGAL_TOKENS.find("Vence em 13 de março de 2026.")] == ["13 de março de 2026"]

@@ -21,11 +21,11 @@ from legal_tools import DeadlineItem, UpcomingDeadlinesOutput, legal_registry
 
 type Situation = Literal["overdue", "upcoming"]
 
-PROMPT_VERSION = "deadline-sentence-v1"
+PROMPT_VERSION = "deadline-sentence-v2"
 
 SYSTEM_PROMPT = (
     "Você escreve uma frase para o digest diário de um advogado, sobre um único prazo. Receberá os fatos "
-    "do prazo em JSON. Escreva UMA frase em português com o tipo do prazo e a data de vencimento no formato "
+    "do prazo em JSON. Escreva UMA frase em português com o tipo do prazo (use as palavras de `kind`) e a data de vencimento no formato "
     "dd/mm/aaaa, e o número do processo. Se `situation` for `overdue`, diga que o prazo já venceu e continua "
     "aberto. Use somente o que está nos fatos, exatamente como está. Não calcule, não conte dias, não "
     "estime, não interprete nem dê conselho, e não mencione dado que não esteja nos fatos."
@@ -51,6 +51,7 @@ class DigestItem:
     case_number: str
     sentence: str | None
     warning: str | None  # preenchido quando a frase falhou: o item sai só com os dados do registro
+    attempts: int  # chamadas ao modelo para este item; 1 = aceita de primeira (o que o eval real mede)
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,7 @@ def build_digest(
             reader=LEGAL_TOKENS,
             model=model,
             max_attempts=max_attempts,
+            required=[facts.kind],  # o tipo do prazo é palavra, não número: só esta checagem o confere
         )
         total = add_usage(total, explanation.usage)
         items.append(
@@ -101,6 +103,7 @@ def build_digest(
                 case_number=row.case_number,
                 sentence=explanation.rationale,
                 warning=None if explanation.rationale else f"frase não validada: {explanation.error}",
+                attempts=explanation.attempts,
             )
         )
     return Digest(items, total, PROMPT_VERSION, model)
