@@ -23,27 +23,27 @@ Study project, built in sequential phases (details in `CLAUDE.md`; full guide in
 | 6. Legal pack | daily digest of deadlines and docket events with `source_ref`, fidelity and refusal evals, own traces | criterion met (`legal-assistant/`); the guide's checkbox is the author's |
 | 7-8 | Triggers, hardening | planned |
 
-The ERP pack is in `erp-assistant/` and the Legal pack in `legal-assistant/` (own database, credentials and traces; they share only code, via `ai-harness`). The harness extraction (phase 5) is under way: `ai-harness/` already holds `tracing`, `tools`, `llm`, `pricing`, `agent`, `validators` and `narrate`; the rest still lives next to the ERP code and moves step by step. The Legal pack comes after, as the test that the harness is really domain-agnostic.
+The ERP pack is in `erp-assistant/` and the Legal pack in `legal-assistant/` (own database, credentials and traces; they share only code, via `ai-harness`). The harness is extracted (`ai-harness/`, 17 modules, proven domain-agnostic by a toy pack and by the Legal pack; it changed twice during phase 6, both times by generic capability: `ScriptedClient` and `narrate(required=...)`). Next: phase 7 (triggers and integration). Deferred on purpose to phase 8: an LLM fidelity judge for the Legal refusal answers, per-origin masking (person names), prompt-injection golden set.
 
 ## Structure
 
 ```
 ai-harness/           # domain-agnostic library, package `harness`; `examples/toy_pack` shows how to write a pack
-erp-assistant/        # ERP pack: working code, tests, evals, notes (see its README)
+erp-assistant/        # ERP pack: working code, tests, evals, study notes (see its README)
+legal-assistant/      # Legal pack: deadline and docket digest, refusal, own traces (see its README)
 docs/agents/          # issue tracker and domain-doc conventions for coding agents
 .github/workflows/    # CI: unit tests, simulated evals, typecheck (no network, no secrets)
 ```
 
-Planned for `ai-harness/` (today: `tracing`, `tools`, `llm`, `pricing`, `agent`, `validators`, `narrate`, `masking`, `evals` and more).
+Planned for `ai-harness/` (versioned by tag when the repos split; `scheduler` and `approvals` arrive in phase 7):
 
 ```
-ai-harness/           # library, versioned by tag
+ai-harness/
   harness/{runtime,llm,tools,guardrails,tracing,evals,scheduler,approvals}/
-legal-assistant/      # Legal pack + deploy
 ```
 
 ERP and Legal share no data, credentials, or deploy, only code, via the harness.
 
 ## Quick start
 
-See `erp-assistant/README.md`. Needs `uv` and Docker; the LLM provider is Groq (free tier), so tests that call it are marked `integration` and stay out of CI.
+See `erp-assistant/README.md` and `legal-assistant/README.md` (the ERP Postgres is on port 5432, the Legal's on 5433). Needs `uv` and Docker; the LLM provider is Groq (free tier), so tests that call it are marked `integration` and stay out of CI.
