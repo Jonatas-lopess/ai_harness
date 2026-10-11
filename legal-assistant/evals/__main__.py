@@ -8,13 +8,14 @@ from harness.evals import Scored, Suite
 from harness.evals import main as _main
 from harness.evals import run_all as _run_all
 
-from evals import fidelity
+from evals import fidelity, refusal
 
 HISTORY_PATH = Path(__file__).with_name("history.jsonl")
 
 # Modelo simulado: sem rede, sem Docker, sem custo. Seguro de rodar a cada commit.
 SUITES: dict[str, Suite] = {
     "fidelity": fidelity.run,
+    "refusal": refusal.run,
 }
 
 

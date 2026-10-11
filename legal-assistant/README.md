@@ -36,7 +36,8 @@ CI runs only the unit tests and the typecheck, like the ERP.
 | `legal_tools.py` | `upcoming_deadlines(days)` (`overdue` and `upcoming` apart) and `recent_events(days)` (events plus `quiet_matters`), both filtered by the context's user; `source_ref` built by code |
 | `legal_tokens.py` | what counts as a value in Legal text: dates (`date`), case numbers (`str`), integers; composed by the pack |
 | `legal_digest.py` | `DeadlineFacts` (no ids), `EventFacts` (the event text is untrusted third-party data), `build_digest` (one `narrate` per row; a rejected sentence degrades to the record data plus a warning), `run_digest_job` |
-| `evals/` | `fidelity` golden set (simulated model, runs in CI: `python -m evals`); by hand with the real model: `evals.real_digest` (first-attempt acceptance) and `evals.real_injection` (does the model obey an order hidden in a docket event?) |
+| `evals/` | `fidelity` and `refusal` golden sets (simulated model, run in CI: `python -m evals`); by hand with the real model: `evals.real_digest` (first-attempt acceptance) `evals.real_injection` (does the model obey an order hidden in a docket event?) and `evals.real_refusal` (does it refuse when the record has no answer?) |
+| `legal_answers.py` | on-demand questions: the Legal prompt (dates only as the tools return them, never calculate a deadline), the pack's reader, and the extra rule that empty tool results are not evidence |
 | `legal_prices.py`, `prices.json` | the Legal's own price table |
 | `legal_traces.py`, `trace_report.py` | where the Legal writes traces (`traces/traces.jsonl`, git-ignored, never the ERP's file) and the command that reads them |
 
