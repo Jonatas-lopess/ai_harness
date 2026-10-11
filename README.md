@@ -20,9 +20,10 @@ Study project, built in sequential phases (details in `CLAUDE.md`; full guide in
 | 3. Validators and evals | golden sets, CI that fails on a wrong number, calibrated LLM judge | done |
 | 4. Observability | every run traceable | done (spans, request ID, instrumented loop, cost per job, masking, `trace_report`, provider parameters and tool schemas in the trace) |
 | 5. Harness extraction | `ai-harness` package, ERP imports from it | criterion met and proven by a toy pack; tag and repo split deferred (the repo becomes the harness's when split) |
-| 6-8 | Legal pack, triggers, hardening | planned |
+| 6. Legal pack | daily digest of deadlines and docket events with `source_ref`, fidelity and refusal evals, own traces | criterion met (`legal-assistant/`); the guide's checkbox is the author's |
+| 7-8 | Triggers, hardening | planned |
 
-Only the ERP pack exists so far, in `erp-assistant/`. The harness extraction (phase 5) is under way: `ai-harness/` already holds `tracing`, `tools`, `llm`, `pricing`, `agent`, `validators` and `narrate`; the rest still lives next to the ERP code and moves step by step. The Legal pack comes after, as the test that the harness is really domain-agnostic.
+The ERP pack is in `erp-assistant/` and the Legal pack in `legal-assistant/` (own database, credentials and traces; they share only code, via `ai-harness`). The harness extraction (phase 5) is under way: `ai-harness/` already holds `tracing`, `tools`, `llm`, `pricing`, `agent`, `validators` and `narrate`; the rest still lives next to the ERP code and moves step by step. The Legal pack comes after, as the test that the harness is really domain-agnostic.
 
 ## Structure
 
@@ -33,7 +34,7 @@ docs/agents/          # issue tracker and domain-doc conventions for coding agen
 .github/workflows/    # CI: unit tests, simulated evals, typecheck (no network, no secrets)
 ```
 
-Planned for `ai-harness/` (today: `tracing`, `tools`, `llm`, `pricing`, `agent`, `validators`, `narrate`); not created yet: `legal-assistant/`.
+Planned for `ai-harness/` (today: `tracing`, `tools`, `llm`, `pricing`, `agent`, `validators`, `narrate`, `masking`, `evals` and more).
 
 ```
 ai-harness/           # library, versioned by tag
