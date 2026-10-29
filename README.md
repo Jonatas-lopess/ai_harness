@@ -1,3 +1,4 @@
+<!-- portfolio:start -->
 # ai-harness
 
 A shared library (**harness**) plus two independent domain packs — **ERP** and **Legal** — for building AI assistants on top of business systems. Built incrementally as a learning project in AI engineering.
@@ -7,10 +8,6 @@ A shared library (**harness**) plus two independent domain packs — **ERP** and
 - **Legal pack**: surfaces case deadlines, summarizes docket movements.
 
 Design principle: deterministic code computes and decides; the LLM explains and summarizes. In the Legal pack, the LLM never computes or infers a deadline — only presents what the system of record gives.
-
-<!-- portfolio:start -->
-Your summary here.
-<!-- portfolio:end -->
 
 ## Status
 
@@ -51,3 +48,4 @@ ERP and Legal share no data, credentials, or deploy, only code, via the harness.
 ## Quick start
 
 See `erp-assistant/README.md` and `legal-assistant/README.md` (the ERP Postgres is on port 5432, the Legal's on 5433). Needs `uv` and Docker; the LLM provider is Groq (free tier), so tests that call it are marked `integration` and stay out of CI.
+<!-- portfolio:end -->
