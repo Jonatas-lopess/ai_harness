@@ -2,6 +2,7 @@
 
 <!-- portfolio:start -->
 A shared library (**harness**) plus two independent domain packs — **ERP** and **Legal** — for building AI assistants on top of business systems. Built incrementally as a learning project in AI engineering.
+<!-- portfolio:end -->
 
 - **Harness**: LLM calls, tool registry, budgets, output validation, tracing, evals — everything domain-agnostic.
 - **ERP pack**: flags stock-replenishment needs, summarizes checkout/financial data.
@@ -44,7 +45,6 @@ ai-harness/
 ```
 
 ERP and Legal share no data, credentials, or deploy, only code, via the harness.
-<!-- portfolio:end -->
 
 ## Quick start
 
