@@ -8,6 +8,10 @@ A shared library (**harness**) plus two independent domain packs — **ERP** and
 
 Design principle: deterministic code computes and decides; the LLM explains and summarizes. In the Legal pack, the LLM never computes or infers a deadline — only presents what the system of record gives.
 
+<!-- portfolio:start -->
+Your summary here.
+<!-- portfolio:end -->
+
 ## Status
 
 Study project, built in sequential phases (details in `CLAUDE.md`; full guide in Portuguese: `Guia de Estudo Harness de IA para ERP e Legal.md`).
